@@ -1,0 +1,2600 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#059669">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="栄養管理">
+<meta name="description" content="1日の栄養バランスを可視化するアプリ">
+<link rel="manifest" href="manifest.json">
+<title>Nutrition Radar</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh; min-height: 100dvh;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 40%, #f8fafc 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  overscroll-behavior: none;
+}
+
+#installBanner {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: #fff; border-top: 1px solid #d1fae5;
+  padding: 14px 20px max(14px, env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.10); align-items: center; gap: 12px;
+}
+#installBanner.show { display: flex; }
+.install-icon { font-size: 28px; flex-shrink: 0; }
+.install-text { flex: 1; }
+.install-text strong { font-size: 14px; color: #065f46; display: block; }
+.install-text span { font-size: 12px; color: #6b7280; }
+.install-btn { background: linear-gradient(135deg, #059669, #10b981); color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.install-close { background: none; border: none; color: #9ca3af; font-size: 20px; cursor: pointer; padding: 4px; }
+
+#offlineToast {
+  display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: #374151; color: #fff; border-radius: 20px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600; z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+#offlineToast.show { display: block; }
+
+header {
+  background: linear-gradient(135deg, #065f46, #059669);
+  padding: max(22px, calc(22px + env(safe-area-inset-top))) 20px 18px;
+  box-shadow: 0 4px 24px rgba(6,95,70,0.18);
+  position: sticky; top: 0; z-index: 50;
+}
+.header-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+.header-icon { width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+header h1 { color: #fff; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+header p { color: #6ee7b7; font-size: 12px; }
+.header-status { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6ee7b7; }
+.status-dot.offline { background: #fca5a5; }
+.status-label { color: #a7f3d0; font-size: 11px; font-weight: 600; }
+
+.container { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+
+/* ── Calendar Card ── */
+.calendar-card {
+  background: #fff; border-radius: 24px; margin-top: 20px;
+  box-shadow: 0 2px 24px rgba(16,185,129,0.10); border: 1px solid #d1fae5;
+  overflow: hidden;
+}
+.calendar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+}
+.cal-month-label { font-size: 16px; font-weight: 800; color: #065f46; }
+.cal-date-display { font-size: 12px; color: #059669; font-weight: 600; margin-top: 2px; }
+.cal-nav-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: none;
+  background: rgba(16,185,129,0.12); color: #059669; font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.cal-nav-btn:active { background: rgba(16,185,129,0.25); }
+.cal-today-btn {
+  padding: 6px 12px; border-radius: 8px; border: 1.5px solid #d1fae5;
+  background: #fff; color: #059669; font-size: 12px; font-weight: 700;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.cal-today-btn:active { background: #f0fdf4; }
+.cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  padding: 8px 12px 4px; gap: 2px;
+}
+.cal-weekday { text-align: center; font-size: 11px; font-weight: 700; color: #9ca3af; padding: 4px 0; }
+.cal-weekday:first-child { color: #f87171; }
+.cal-weekday:last-child { color: #60a5fa; }
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  padding: 0 12px 12px; gap: 3px;
+}
+.cal-day {
+  aspect-ratio: 1; border-radius: 10px; border: none; background: transparent;
+  cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; position: relative;
+  -webkit-tap-highlight-color: transparent; transition: background 0.15s;
+}
+.cal-day:active { background: #f0fdf4; }
+.cal-day.other-month .cal-day-num { color: #d1d5db; }
+.cal-day.today .cal-day-num {
+  background: #059669; color: #fff; border-radius: 50%;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+}
+.cal-day.selected { background: #ecfdf5; }
+.cal-day.selected .cal-day-num { color: #065f46; font-weight: 800; }
+.cal-day-num { font-size: 13px; font-weight: 600; color: #374151; line-height: 1; }
+.cal-day.other-month { opacity: 0.4; }
+/* dot for days with records */
+.cal-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: #10b981;
+  flex-shrink: 0;
+}
+.cal-dot.over { background: #f59e0b; }
+
+/* ── Calorie Card ── */
+.calorie-card {
+  background: linear-gradient(135deg, #065f46, #047857);
+  border-radius: 24px; margin-top: 14px;
+  box-shadow: 0 4px 24px rgba(6,95,70,0.25);
+  padding: 20px 24px; color: #fff;
+  display: flex; align-items: center; gap: 16px;
+}
+.calorie-left { flex: 1; }
+.calorie-label { font-size: 11px; font-weight: 600; color: #6ee7b7; text-transform: uppercase; letter-spacing: 1px; }
+.calorie-row { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.calorie-value { font-size: 48px; font-weight: 800; line-height: 1; color: #fff; }
+.calorie-unit { font-size: 16px; font-weight: 600; color: #a7f3d0; }
+.calorie-goal-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.calorie-bar-track { flex: 1; background: rgba(255,255,255,0.2); border-radius: 99px; height: 7px; overflow: hidden; }
+.calorie-bar-fill { height: 100%; border-radius: 99px; background: #6ee7b7; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.calorie-goal-text { font-size: 12px; color: #a7f3d0; white-space: nowrap; }
+.calorie-right { text-align: center; flex-shrink: 0; }
+.calorie-ring-wrap { position: relative; width: 80px; height: 80px; }
+.calorie-ring-wrap svg { transform: rotate(-90deg); }
+.calorie-ring-bg { fill: none; stroke: rgba(255,255,255,0.15); stroke-width: 7; }
+.calorie-ring-fg { fill: none; stroke: #6ee7b7; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1); }
+.calorie-ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.calorie-ring-pct { font-size: 16px; font-weight: 800; color: #fff; line-height: 1; }
+.calorie-ring-sub { font-size: 9px; color: #a7f3d0; font-weight: 600; margin-top: 2px; }
+
+/* ── Radar Card ── */
+.card { background: #fff; border-radius: 24px; margin-top: 14px; box-shadow: 0 2px 24px rgba(16,185,129,0.10); overflow: hidden; border: 1px solid #d1fae5; }
+.card-header { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: center; }
+.score-label { color: #6b7280; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+.score-row { display: flex; align-items: baseline; gap: 4px; margin-top: 4px; }
+.score-value { font-size: 40px; font-weight: 800; line-height: 1; transition: color 0.4s; }
+.score-unit { font-size: 18px; font-weight: 600; transition: color 0.4s; }
+.chart-wrap { padding: 10px 20px; height: 270px; }
+.mini-badges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 8px; }
+.mini-badge { text-align: center; }
+.mini-badge-circle { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 3px; font-size: 9px; font-weight: 700; }
+.mini-badge p { font-size: 9px; color: #9ca3af; white-space: nowrap; }
+
+.mini-bars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
+.mini-bar-card { background: #fff; border-radius: 16px; padding: 12px 14px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.04); cursor: default; }
+.mini-bar-card.expandable { cursor: pointer; transition: border-color 0.2s, background 0.15s; }
+.mini-bar-card.expandable:active { background: #f9fafb; }
+.mini-bar-card.expanded { border-color: #10b981; }
+.mini-bar-top { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
+.mini-bar-name { font-size: 11px; font-weight: 700; color: #374151; }
+.mini-bar-track { background: #f3f4f6; border-radius: 99px; height: 5px; overflow: hidden; }
+.mini-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+.mini-bar-sub { font-size: 10px; color: #9ca3af; margin-top: 4px; }
+.mini-bar-chevron { font-size: 10px; color: #9ca3af; display: inline-block; transition: transform 0.2s; }
+.mini-bar-chevron.open { transform: rotate(180deg); }
+.detail-panel { grid-column: 1 / -1; background: #fff; border-radius: 20px; border: 1px solid #d1fae5; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; animation: fadeIn 0.25s ease; margin-top: 2px; }
+.detail-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+.detail-panel-title { font-size: 14px; font-weight: 800; }
+.detail-panel-close { background: #f3f4f6; border: none; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; }
+.detail-sub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 16px; }
+.detail-sub-item { background: #f9fafb; border-radius: 12px; padding: 10px 12px; }
+.detail-sub-name { font-size: 11px; font-weight: 700; margin-bottom: 5px; }
+.detail-sub-bar-track { background: #e5e7eb; border-radius: 99px; height: 4px; overflow: hidden; margin-bottom: 4px; }
+.detail-sub-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s; }
+.detail-sub-nums { display: flex; justify-content: space-between; font-size: 10px; color: #9ca3af; }
+
+.tabs { display: flex; gap: 6px; background: #f3f4f6; border-radius: 16px; padding: 5px; margin-top: 20px; }
+.tab-btn { flex: 1; padding: 10px 0; border-radius: 12px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: #9ca3af; transition: all 0.25s; -webkit-tap-highlight-color: transparent; }
+.tab-btn.active { background: #fff; color: #059669; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── MyList ── */
+.mylist-item { background: #fff; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); animation: fadeIn 0.3s ease; transition: box-shadow 0.2s, opacity 0.2s; cursor: default; }
+.mylist-item:hover { background: #f0fdf4; }
+.mylist-item.dragging { opacity: 0.4; box-shadow: none; }
+.mylist-item.drag-over { border-color: #10b981; background: #f0fdf4; box-shadow: 0 0 0 2px #10b98140; }
+.drag-handle { cursor: grab; color: #d1d5db; font-size: 16px; flex-shrink: 0; padding: 2px 2px; touch-action: none; user-select: none; }
+.drag-handle:active { cursor: grabbing; }
+.mylist-icon { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; background: #ecfdf5; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.mylist-info { flex: 1; min-width: 0; }
+.mylist-name { font-size: 14px; font-weight: 700; color: #111827; }
+.mylist-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mylist-add-btn { background: linear-gradient(135deg,#059669,#10b981); border: none; border-radius: 10px; padding: 7px 13px; cursor: pointer; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.mylist-add-btn:active { transform: scale(0.95); }
+.mylist-del-btn { background: #fff0f0; border: none; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 14px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.mylist-del-btn:active { background: #fee2e2; }
+
+.mylist-empty { text-align: center; padding: 32px 0; color: #9ca3af; }
+.save-to-mylist-btn { width: 100%; margin-top: 8px; padding: 11px; background: #f0fdf4; border: 1.5px dashed #10b981; border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 700; color: #059669; -webkit-tap-highlight-color: transparent; }
+.save-to-mylist-btn:active { background: #dcfce7; }
+
+.add-btn-main { width: 100%; margin-top: 14px; padding: 16px; background: linear-gradient(135deg, #059669, #10b981); border: none; border-radius: 16px; cursor: pointer; color: #fff; font-size: 15px; font-weight: 700; box-shadow: 0 4px 18px rgba(16,185,129,0.25); transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+.add-btn-main:active { transform: scale(0.98); }
+
+.form-card { background: #fff; border-radius: 20px; margin-top: 14px; border: 1px solid #d1fae5; overflow: hidden; animation: fadeIn 0.3s ease; }
+.form-card-header { background: linear-gradient(135deg, #ecfdf5, #f0fdf4); padding: 16px 20px 12px; }
+.form-card-header h3 { font-size: 16px; font-weight: 700; color: #065f46; }
+.form-body { padding: 16px 20px; }
+input { font-family: inherit; }
+.main-input { width: 100%; padding: 13px 14px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 16px; margin-bottom: 12px; }
+.main-input:focus { outline: none; border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.15); }
+
+.calorie-input-row { display: flex; align-items: center; background: #fef3c7; border: 1.5px solid #f59e0b40; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; gap: 10px; }
+.calorie-input-row label { font-size: 12px; font-weight: 700; color: #92400e; white-space: nowrap; }
+.calorie-input-row input { flex: 1; border: none; background: transparent; font-size: 20px; font-weight: 800; color: #78350f; text-align: right; width: 80px; }
+.calorie-input-row input:focus { outline: none; }
+.calorie-input-row span { font-size: 12px; font-weight: 600; color: #92400e; }
+
+.nutrient-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.nutrient-field label { font-size: 11px; font-weight: 700; display: block; margin-bottom: 4px; }
+.nutrient-input { width: 100%; padding: 10px; border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 16px; }
+.nutrient-input:focus { outline: none; border-color: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,0.15); }
+.form-actions { display: flex; gap: 8px; margin-top: 14px; }
+.cancel-btn { flex: 1; padding: 13px; border: 1.5px solid #e5e7eb; border-radius: 12px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: #6b7280; -webkit-tap-highlight-color: transparent; }
+.submit-btn { flex: 2; padding: 13px; background: linear-gradient(135deg, #059669, #10b981); border: none; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 700; color: #fff; -webkit-tap-highlight-color: transparent; }
+.submit-btn:active { transform: scale(0.98); }
+
+.meal-list { margin-top: 16px; }
+.meal-empty { text-align: center; padding: 32px 0; color: #9ca3af; }
+.meal-item { background: #fff; border-radius: 16px; padding: 11px 12px; margin-bottom: 8px; border: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); animation: fadeIn 0.3s ease; }
+.color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.color-picker-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.color-picker-row label { font-size: 12px; font-weight: 700; color: #374151; }
+.color-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
+.color-swatch:active { transform: scale(0.88); }
+.color-swatch.selected { border-color: #111827; transform: scale(1.15); }
+.meal-cat-btn { padding: 7px 12px; border-radius: 10px; border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280; font-size: 12.5px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s; }
+.meal-cat-btn.selected { border-color: #10b981; background: #ecfdf5; color: #059669; }
+.meal-info { flex: 1; min-width: 0; }
+.meal-name { font-size: 14px; font-weight: 700; color: #111827; padding-left: 1em; }
+.meal-kcal { display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin-left: 6px; }
+.meal-detail { font-size: 11px; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; padding-left: 1em; }
+.delete-btn { background: #fff0f0; border: none; border-radius: 8px; width: 36px; height: 36px; cursor: pointer; font-size: 16px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.delete-btn:active { background: #fee2e2; transform: scale(0.9); }
+
+.goal-card { background: #fff; border-radius: 20px; margin-top: 14px; border: 1px solid #d1fae5; overflow: hidden; }
+.goal-card-header { background: linear-gradient(135deg, #ecfdf5, #f0fdf4); padding: 16px 20px 12px; }
+.goal-card-header h3 { font-size: 16px; font-weight: 700; color: #065f46; }
+.goal-card-header p { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.goal-body { padding: 16px 20px; }
+.calorie-goal-field { background: #fef3c7; border: 1.5px solid #f59e0b40; border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+.calorie-goal-field label { font-size: 13px; font-weight: 700; color: #92400e; display: block; margin-bottom: 8px; }
+.calorie-goal-input-wrap { position: relative; }
+.calorie-goal-input { width: 100%; padding: 11px 52px 11px 14px; border-radius: 10px; font-size: 18px; font-weight: 700; color: #78350f; background: #fffbeb; border: 1.5px solid #fcd34d; font-family: inherit; }
+.calorie-goal-input:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+.calorie-goal-unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 700; color: #92400e; pointer-events: none; }
+.goal-field { margin-bottom: 14px; }
+.goal-field-top { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.goal-field-top label { font-size: 13px; font-weight: 700; }
+.goal-field-top span { font-size: 11px; color: #9ca3af; }
+.goal-input-wrap { position: relative; }
+.goal-input { width: 100%; padding: 12px 42px 12px 14px; border-radius: 12px; font-size: 16px; font-weight: 600; color: #111827; font-family: inherit; }
+.goal-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(52,211,153,0.15); }
+.goal-unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; font-weight: 600; pointer-events: none; }
+.save-btn { width: 100%; margin-top: 6px; padding: 15px; background: linear-gradient(135deg, #059669, #10b981); border: none; border-radius: 14px; cursor: pointer; color: #fff; font-size: 15px; font-weight: 700; transition: all 0.3s; -webkit-tap-highlight-color: transparent; }
+.save-btn:active { transform: scale(0.98); }
+.save-btn.saved { background: #059669; }
+
+.data-actions { display: flex; gap: 8px; margin-top: 16px; margin-bottom: 4px; }
+.data-btn { flex: 1; padding: 10px; border: 1.5px solid #e5e7eb; border-radius: 12px; background: #fff; cursor: pointer; font-size: 12px; font-weight: 600; color: #6b7280; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.data-btn:active { background: #f9fafb; }
+
+/* viewing past day notice */
+.past-notice {
+  background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 14px;
+  padding: 10px 14px; margin-top: 14px;
+  display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #92400e;
+}
+
+/* ── Confirm Modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,0.45); align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.show { display: flex; animation: fadeIn 0.2s ease; }
+.modal-box {
+  background: #fff; border-radius: 24px; width: 100%; max-width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden;
+}
+.modal-body { padding: 24px 24px 8px; text-align: center; }
+.modal-icon { font-size: 40px; margin-bottom: 12px; }
+.modal-title { font-size: 17px; font-weight: 800; color: #111827; margin-bottom: 6px; }
+.modal-desc { font-size: 13px; color: #6b7280; line-height: 1.5; }
+.modal-actions { display: flex; gap: 10px; padding: 16px 20px 20px; }
+.modal-cancel { flex: 1; padding: 13px; border: 1.5px solid #e5e7eb; border-radius: 14px; background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: #6b7280; -webkit-tap-highlight-color: transparent; }
+.modal-cancel:active { background: #f9fafb; }
+.modal-confirm { flex: 1; padding: 13px; border: none; border-radius: 14px; cursor: pointer; font-size: 14px; font-weight: 700; color: #fff; -webkit-tap-highlight-color: transparent; }
+.modal-confirm:active { opacity: 0.85; }
+
+/* ── Food Search Suggestions ── */
+.food-suggestions {
+  display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 60;
+  background: #fff; border: 1.5px solid #d1fae5; border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(6,95,70,0.15); overflow: hidden; max-height: 260px; overflow-y: auto;
+}
+.food-suggestions.show { display: block; }
+.food-suggestion-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 11px 14px; cursor: pointer; border-bottom: 1px solid #f0fdf4;
+  -webkit-tap-highlight-color: transparent;
+}
+.food-suggestion-item:last-child { border-bottom: none; }
+.food-suggestion-item:active { background: #f0fdf4; }
+.food-suggestion-name { font-size: 13px; font-weight: 700; color: #065f46; }
+.food-suggestion-kcal { font-size: 11px; font-weight: 600; color: #059669; white-space: nowrap; }
+.food-suggestion-hint { padding: 9px 14px; font-size: 11px; color: #9ca3af; text-align: center; }
+
+/* ── Gram Input Modal ── */
+.gram-modal-body { padding: 22px 24px 6px; }
+.gram-modal-food { font-size: 15px; font-weight: 800; color: #065f46; text-align: center; margin-bottom: 4px; }
+.gram-modal-sub { font-size: 12px; color: #9ca3af; text-align: center; margin-bottom: 16px; }
+.gram-input-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.gram-input-row input {
+  width: 100px; text-align: center; font-size: 22px; font-weight: 800; color: #065f46;
+  border: 1.5px solid #d1fae5; border-radius: 12px; padding: 10px; outline: none;
+}
+.gram-input-row span { font-size: 15px; font-weight: 700; color: #6b7280; }
+.gram-quick-row { display: flex; gap: 6px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+.gram-quick-btn {
+  padding: 6px 12px; border-radius: 20px; border: 1.5px solid #d1fae5; background: #f0fdf4;
+  color: #059669; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.gram-quick-btn:active { background: #d1fae5; }
+
+/* ── Salt Bar ── */
+.salt-bar-wrap {
+  margin: 0 12px 10px;
+  background: #faf5ff;
+  border-radius: 10px;
+  padding: 7px 10px;
+  border: 1px solid #e9d5ff;
+}
+.salt-bar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.salt-bar-label { font-size: 10px; font-weight: 700; color: #7e22ce; }
+.salt-bar-value { font-size: 11px; font-weight: 800; color: #7e22ce; }
+.salt-bar-track { background: #ede9fe; border-radius: 99px; height: 5px; overflow: hidden; }
+.salt-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #a855f7, #7c3aed); transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+.salt-bar-sub { display: flex; justify-content: space-between; margin-top: 3px; font-size: 9px; color: #9ca3af; }
+.salt-over { color: #f87171 !important; }
+
+/* ── Water Widget ── */
+.radar-water-wrap { display: flex; gap: 10px; margin-top: 14px; align-items: stretch; }
+.radar-water-wrap .card { flex: 1; margin-top: 0; }
+.water-widget {
+  background: linear-gradient(160deg, #eff6ff, #dbeafe);
+  border-radius: 24px; border: 1px solid #bfdbfe;
+  box-shadow: 0 2px 24px rgba(59,130,246,0.10);
+  width: 60px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 8px 14px; gap: 4px;
+}
+.water-title { font-size: 10px; font-weight: 800; color: #1d4ed8; letter-spacing: 0.5px; }
+.water-liters { font-size: 26px; font-weight: 800; color: #1d4ed8; line-height: 1; margin-top: 2px; }
+.water-l-unit { font-size: 11px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
+.water-bar-wrap { flex: 1; width: 20px; background: #bfdbfe; border-radius: 99px; overflow: hidden; position: relative; min-height: 80px; }
+.water-bar-fill { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, #2563eb, #60a5fa); border-radius: 99px; transition: height 0.5s cubic-bezier(.4,0,.2,1); }
+.water-btn-row { display: flex; gap: 4px; margin-top: 4px; }
+.water-btn {
+  width: 24px; height: 24px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+}
+.water-btn-minus { background: #dbeafe; color: #1d4ed8; }
+.water-btn-plus  { background: #3b82f6; color: #fff; }
+.water-btn:active { transform: scale(0.88); }
+.water-goal-text { font-size: 9px; color: #93c5fd; font-weight: 600; }
+.water-input-row { display: flex; align-items: center; gap: 2px; margin-top: 2px; }
+.water-input { width: 40px; border: 1.5px solid #93c5fd; border-radius: 8px; background: #fff; font-size: 14px; font-weight: 700; color: #1d4ed8; text-align: center; padding: 4px 2px; font-family: inherit; }
+.water-input:focus { outline: none; border-color: #3b82f6; }
+
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+@media print {
+  body { background: #fff !important; padding-bottom: 0 !important; font-family: sans-serif; }
+  header, .tabs, .tab-panel, .data-actions, #installBanner, #offlineToast,
+  .calendar-card, .past-notice, #confirmModal, #appToast,
+  .mylist-add-btn, .mylist-del-btn, .drag-handle { display: none !important; }
+  .add-btn-main, .meal-list { display: none !important; }
+  .radar-water-wrap { display: flex !important; }
+  .water-widget { display: flex !important; }
+  .water-btn-row, .water-input-row { display: none !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; margin-top: 10px !important; }
+  .calorie-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .mini-bar-card { border: 1px solid #ccc !important; box-shadow: none !important; }
+  .detail-panel { display: none !important; }
+  .mini-badge-circle { width: 48px !important; height: 48px !important; font-size: 13px !important; }
+  .mini-badge p { font-size: 13px !important; }
+  .mini-badges { gap: 10px 12px !important; }
+  .card-header { padding: 20px 24px 10px !important; }
+  .score-label { font-size: 30px !important; }
+  .calorie-label { font-size: 16.5px !important; }
+  .score-label + .score-label { display: none !important; }
+  .score-label:first-child::after { content: 'スコア'; margin-left: 4px; }
+  .score-value { font-size: 60px !important; }
+  .chart-wrap { display: none !important; }
+  #printRadar { display: block !important; padding-left: 80px !important; margin-bottom: 40px !important; }
+  #tab-meal { display: block !important; }
+  .meal-item { break-inside: avoid; }
+  .delete-btn { display: none !important; }
+  .print-header { display: block !important; }
+  .print-footer { display: block !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+.hidden { display: none !important; }
+@media (max-width: 400px) {
+  .mini-badges { gap: 4px; }
+  .mini-badge-circle { width: 28px; height: 28px; font-size: 8px; }
+  .calorie-value { font-size: 38px; }
+  .calorie-ring-wrap { width: 68px; height: 68px; }
+  .cal-day-num { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="offlineToast">📵 オフラインモード</div>
+
+<div id="installBanner">
+  <div class="install-icon">📲</div>
+  <div class="install-text">
+    <strong>ホーム画面に追加</strong>
+    <span>アプリとして使えます（オフライン対応）</span>
+  </div>
+  <button class="install-btn" id="installBtn">インストール</button>
+  <button class="install-close" id="installClose">✕</button>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="header-icon">🌿</div>
+    <div>
+      <h1>Nutrition Radar</h1>
+      <p id="headerDateLabel">1日の栄養バランスを可視化</p>
+    </div>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-label" id="statusLabel">オンライン</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Calendar Card -->
+  <div class="calendar-card">
+    <div class="calendar-header">
+      <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+      <div style="text-align:center">
+        <div class="cal-month-label" id="calMonthLabel"></div>
+        <div class="cal-date-display" id="calDateDisplay"></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="cal-today-btn" onclick="goToday()">今日</button>
+        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="cal-weekdays">
+      <div class="cal-weekday">日</div>
+      <div class="cal-weekday">月</div>
+      <div class="cal-weekday">火</div>
+      <div class="cal-weekday">水</div>
+      <div class="cal-weekday">木</div>
+      <div class="cal-weekday">金</div>
+      <div class="cal-weekday">土</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- Past day notice -->
+  <div class="past-notice hidden" id="pastNotice">
+    📅 <span id="pastNoticeText"></span>のデータを表示中
+  </div>
+
+  <!-- Calorie Card -->
+  <div class="calorie-card">
+    <div class="calorie-left">
+      <div class="calorie-label" id="calDayLabel">🔥 本日のカロリー</div>
+      <div class="calorie-row">
+        <span class="calorie-value" id="calTotal">0</span>
+        <span class="calorie-unit">kcal</span>
+      </div>
+      <div class="calorie-goal-row">
+        <div class="calorie-bar-track">
+          <div class="calorie-bar-fill" id="calBarFill" style="width:0%"></div>
+        </div>
+        <span class="calorie-goal-text" id="calGoalText">/ 2000 kcal</span>
+      </div>
+    </div>
+    <div class="calorie-right">
+      <div class="calorie-ring-wrap">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle class="calorie-ring-bg" cx="40" cy="40" r="33"/>
+          <circle class="calorie-ring-fg" id="calRing" cx="40" cy="40" r="33"
+            stroke-dasharray="207.3" stroke-dashoffset="207.3"/>
+        </svg>
+        <div class="calorie-ring-label">
+          <span class="calorie-ring-pct" id="calPct">0%</span>
+          <span class="calorie-ring-sub">達成</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Radar + Water -->
+  <div class="radar-water-wrap">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="score-label">栄養バランス</div><div class="score-label" style="margin-top:2px">スコア</div>
+          <div class="score-row">
+            <span class="score-value" id="scoreValue" style="color:#10b981">0</span>
+            <span class="score-unit" id="scoreUnit" style="color:#10b981">%</span>
+          </div>
+        </div>
+        <div class="mini-badges" id="miniBadges"></div>
+      </div>
+      <div class="chart-wrap"><canvas id="radarChart"></canvas></div>
+      <div id="printRadar" style="display:none"></div>
+      <!-- Salt Bar -->
+      <div class="salt-bar-wrap">
+        <div class="salt-bar-header">
+          <span class="salt-bar-label">🧂 塩分</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button onclick="adjustSalt(-1)" style="width:22px;height:22px;border-radius:6px;border:none;background:#ede9fe;color:#7e22ce;font-size:13px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">−</button>
+            <input id="saltInput" type="number" min="0" max="30" step="0.1" value="0"
+              oninput="setSaltDirect(this.value)"
+              style="width:36px;border:1.5px solid #e9d5ff;border-radius:6px;background:#fff;font-size:11px;font-weight:800;color:#7e22ce;text-align:center;padding:2px 1px;font-family:inherit">
+            <span style="font-size:9px;font-weight:700;color:#7e22ce">g</span>
+            <button onclick="adjustSalt(1)" style="width:22px;height:22px;border-radius:6px;border:none;background:#a855f7;color:#fff;font-size:13px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">＋</button>
+          </div>
+        </div>
+        <div class="salt-bar-track">
+          <div class="salt-bar-fill" id="saltBarFill" style="width:0%"></div>
+        </div>
+        <div class="salt-bar-sub">
+          <span id="saltPct">0%</span>
+          <span id="saltGoalText" onclick="startEditSaltGoal()" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="タップして目標を変更">目標上限 8g</span>
+        </div>
+        <input id="saltGoalInput" type="number" min="0.1" max="30" step="0.1"
+          style="display:none;width:60px;border:1.5px solid #c084fc;border-radius:7px;background:#fff;font-size:11px;font-weight:700;color:#7e22ce;text-align:center;padding:3px 2px;font-family:inherit;margin-top:4px"
+          onblur="commitSaltGoal(this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      </div>
+    </div>
+
+    <!-- Water Widget -->
+    <div class="water-widget">
+      <div class="water-title">💧 水</div>
+      <div class="water-liters" id="waterLiters">0.0</div>
+      <div class="water-l-unit">L</div>
+      <div class="water-bar-wrap">
+        <div class="water-bar-fill" id="waterBarFill" style="height:0%"></div>
+      </div>
+      <div class="water-input-row">
+        <input class="water-input" type="number" id="waterInput" min="0" max="10" step="0.1" value="0" oninput="setWaterDirect(this.value)">
+        <span style="font-size:9px;color:#3b82f6;font-weight:700">L</span>
+      </div>
+      <div id="waterGoalText" class="water-goal-text" onclick="startEditWaterGoal()" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="タップして目標を変更">目標 2.0L</div>
+      <input id="waterGoalInput" type="number" min="0.1" max="10" step="0.1"
+        style="display:none;width:44px;border:1.5px solid #93c5fd;border-radius:7px;background:#fff;font-size:11px;font-weight:700;color:#1d4ed8;text-align:center;padding:3px 2px;font-family:inherit"
+        onblur="commitWaterGoal(this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      <div class="water-btn-row">
+        <button class="water-btn water-btn-minus" onclick="adjustWater(-0.2)">−</button>
+        <button class="water-btn water-btn-plus"  onclick="adjustWater(0.2)">＋</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="mini-bars" id="miniBars"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('meal',this)">🍽️ 食事記録</button>
+    <button class="tab-btn" onclick="switchTab('mylist',this)">⭐ マイリスト</button>
+    <button class="tab-btn" onclick="switchTab('goal',this)">🎯 目標設定</button>
+  </div>
+
+  <!-- Meal Tab -->
+  <div class="tab-panel active" id="tab-meal">
+    <button class="add-btn-main" id="openFormBtn" onclick="openForm()">＋ 食事を追加する</button>
+
+    <div class="form-card hidden" id="mealForm">
+      <div class="form-card-header"><h3 id="formTitle">食事を記録</h3></div>
+      <div class="form-body">
+        <div style="position:relative">
+          <input class="main-input" type="text" id="mealName" placeholder="料理名（例：鶏胸肉のサラダ）" autocomplete="off" oninput="onMealNameInput()" onfocus="onMealNameInput()">
+          <div id="foodSuggestions" class="food-suggestions"></div>
+        </div>
+
+        <div class="color-picker-row">
+          <label>分類</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="mealCategoryPicker">
+            <button type="button" class="meal-cat-btn" data-cat="朝食" onclick="selectMealCategory('朝食',this)">🌅 朝食</button>
+            <button type="button" class="meal-cat-btn" data-cat="昼食" onclick="selectMealCategory('昼食',this)">☀️ 昼食</button>
+            <button type="button" class="meal-cat-btn" data-cat="夕食" onclick="selectMealCategory('夕食',this)">🌙 夕食</button>
+            <button type="button" class="meal-cat-btn" data-cat="その他" onclick="selectMealCategory('その他',this)">🍽️ その他</button>
+          </div>
+        </div>
+
+        <div class="color-picker-row">
+          <label>色</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="color-swatch" data-color="#e5e7eb" onclick="selectColor('#e5e7eb',this)" style="background:#e5e7eb" title="なし"></button>
+            <button type="button" class="color-swatch" data-color="#fdba74" onclick="selectColor('#fdba74',this)" style="background:#fdba74" title="オレンジ"></button>
+            <button type="button" class="color-swatch" data-color="#86efac" onclick="selectColor('#86efac',this)" style="background:#86efac" title="緑"></button>
+            <button type="button" class="color-swatch" data-color="#93c5fd" onclick="selectColor('#93c5fd',this)" style="background:#93c5fd" title="青"></button>
+            <button type="button" class="color-swatch" data-color="#f9a8d4" onclick="selectColor('#f9a8d4',this)" style="background:#f9a8d4" title="ピンク"></button>
+            <button type="button" class="color-swatch" data-color="#c4b5fd" onclick="selectColor('#c4b5fd',this)" style="background:#c4b5fd" title="紫"></button>
+          </div>
+        </div>
+        <div class="calorie-input-row">
+          <label>🔥 カロリー</label>
+          <input type="number" inputmode="decimal" min="0" placeholder="0" id="input_kcal">
+          <span>kcal</span>
+        </div>
+        <div class="nutrient-grid" id="nutrientInputs"></div>
+        <div id="subNutrientSection"></div>
+        <div class="form-actions">
+          <button class="cancel-btn" onclick="closeForm()">キャンセル</button>
+          <button class="submit-btn" id="submitBtn" onclick="submitMeal()">追加する</button>
+        </div>
+        <button class="save-to-mylist-btn" onclick="saveToMyList()">⭐ マイリストに保存する</button>
+      </div>
+    </div>
+
+    <div class="meal-list" id="mealList">
+      <div class="meal-empty" id="mealEmpty">
+        <div style="font-size:40px;margin-bottom:10px">🍽️</div>
+        <p style="font-size:14px">まだ食事が記録されていません</p>
+      </div>
+    </div>
+
+    <div class="data-actions">
+      <button class="data-btn" onclick="resetDay()">🔄 リセット</button>
+      <button class="data-btn" onclick="exportData()">💾 保存</button>
+      
+      <button class="data-btn" onclick="printReport()" style="color:#059669;border-color:#d1fae5">🖨️ 印刷</button>
+    </div>
+    
+  </div>
+
+  <!-- MyList Tab -->
+  <div class="tab-panel" id="tab-mylist">
+    <div style="margin-top:14px">
+      <!-- Daily template card (collapsible) -->
+      <div style="background:#fff;border-radius:20px;border:1px solid #d1fae5;overflow:hidden;margin-bottom:12px">
+        <div onclick="toggleTemplateCard()" style="background:linear-gradient(135deg,#ecfdf5,#f0fdf4);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:8px">
+            <h3 style="font-size:15px;font-weight:800;color:#065f46;margin:0">🔄 毎日のテンプレート</h3>
+          </div>
+          <span id="templateCardChevron" style="color:#059669;font-size:13px;transition:transform 0.2s">▼</span>
+        </div>
+        <div id="templateCardCollapsible" style="display:none;background:#fff">
+          <div style="padding:12px 18px" id="templateBody">
+            <div id="templateMealList" style="margin-bottom:10px"></div>
+            <button onclick="saveCurrentDayAsTemplate()" style="width:100%;padding:11px;background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:12px;cursor:pointer;color:#fff;font-size:13px;font-weight:700">
+              📋 今日の食事記録をテンプレートに保存
+            </button>
+            <button onclick="clearTemplate()" style="width:100%;padding:9px;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;cursor:pointer;color:#9ca3af;font-size:12px;font-weight:600;margin-top:6px">
+              🗑️ テンプレートをクリア
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MyList -->
+      <div style="background:#fff;border-radius:20px;border:1px solid #e5e7eb;overflow:hidden">
+        <div style="background:#f9fafb;padding:12px 18px 10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div>
+              <h3 style="font-size:14px;font-weight:700;color:#374151;margin:0">⭐ マイリスト</h3>
+              
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span id="myListCount" style="font-size:11px;color:#9ca3af;font-weight:600"></span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:10px;color:#9ca3af">文字</span>
+                <input type="range" id="myListFsSilder" min="10" max="20" step="1"
+                  oninput="setMyListFontSize(parseInt(this.value))"
+                  style="width:80px;accent-color:#059669;cursor:pointer">
+                <span id="myListFsLabel" style="font-size:11px;color:#059669;font-weight:700;min-width:26px;text-align:right"></span>
+              </div>
+            </div>
+          </div>
+          <div style="position:relative">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none">🔍</span>
+            <input id="myListSearch" type="text" placeholder="メニュー名で絞り込み…"
+              oninput="filterMyList(this.value)"
+              style="width:100%;padding:8px 10px 8px 32px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;outline:none;background:#fff;transition:border-color 0.2s"
+              onfocus="this.style.borderColor='#10b981'" onblur="this.style.borderColor='#e5e7eb'">
+            <button id="myListSearchClear" onclick="clearMyListSearch()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;line-height:1">✕</button>
+          </div>
+          <button onclick="toggleMyListDataMenu()" style="width:100%;margin-top:8px;padding:9px;border-radius:9px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+            <span>🗂️ データ</span>
+            <span id="myListDataChevron" style="font-size:10px;color:#9ca3af;transition:transform 0.2s">▼</span>
+          </button>
+          <div id="myListDataMenu" style="display:none;gap:6px;margin-top:8px">
+            <input type="file" accept="application/json" id="myListImportInput" style="display:none" onchange="importMyList(event)">
+            <button onclick="exportMyList()" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-size:11.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">💾 保存</button>
+            <button onclick="document.getElementById('myListImportInput').click()" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid #e5e7eb;background:#fff;color:#374151;font-size:11.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">📂 読込</button>
+            <button onclick="shareMyList()" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid #d1fae5;background:#ecfdf5;color:#059669;font-size:11.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">📤 共有</button>
+          </div>
+        </div>
+        <div style="padding:10px 12px" id="myListItems">
+          <div class="mylist-empty" id="myListEmpty">
+            <div style="font-size:36px;margin-bottom:8px">⭐</div>
+            <p style="font-size:14px">まだメニューが登録されていません</p>
+            <p style="font-size:12px;margin-top:4px">食事記録フォームから保存できます</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal Tab -->
+  <div class="tab-panel" id="tab-goal">
+    <div class="goal-card">
+      <div class="goal-card-header">
+        <h3>1日の目標摂取量</h3>
+        <p>カロリーと各栄養素の目標値を設定してください</p>
+      </div>
+      <div class="goal-body" id="goalFields"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <div class="modal-body">
+      <div class="modal-icon" id="modalIcon">🗑️</div>
+      <div class="modal-title" id="modalTitle">削除しますか？</div>
+      <div class="modal-desc" id="modalDesc"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="modal-confirm" id="modalConfirmBtn" onclick="modalConfirmAction()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gram Input Modal -->
+<div class="modal-overlay" id="gramModal">
+  <div class="modal-box">
+    <div class="gram-modal-body">
+      <div class="gram-modal-food" id="gramModalFoodName"></div>
+      <div class="gram-modal-sub">何グラム食べましたか？</div>
+      <div class="gram-input-row">
+        <input type="number" inputmode="decimal" min="1" id="gramInput" value="100">
+        <span>g</span>
+      </div>
+      <div class="gram-quick-row">
+        <button type="button" class="gram-quick-btn" onclick="setGramValue(50)">50g</button>
+        <button type="button" class="gram-quick-btn" onclick="setGramValue(100)">100g</button>
+        <button type="button" class="gram-quick-btn" onclick="setGramValue(150)">150g</button>
+        <button type="button" class="gram-quick-btn" onclick="setGramValue(200)">200g</button>
+        <button type="button" class="gram-quick-btn" onclick="setGramValue(300)">300g</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeGramModal()">キャンセル</button>
+      <button class="modal-confirm" id="gramModalConfirmBtn" style="background:#059669" onclick="confirmGramModal()">反映する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ──
+const NUTRIENTS = ['糖質','脂質','たんぱく質','ビタミン','ミネラル','食物繊維'];
+const UNITS = {糖質:'g',脂質:'g',たんぱく質:'g',ビタミン:'%',ミネラル:'%',食物繊維:'g'};
+const COLORS = {糖質:'#34d399',脂質:'#f59e0b',たんぱく質:'#60a5fa',ビタミン:'#f472b6',ミネラル:'#a78bfa',食物繊維:'#fb923c'};
+const DEFAULT_GOALS = {糖質:260,脂質:65,たんぱく質:65,ビタミン:100,ミネラル:100,食物繊維:21};
+const RING_CIRCUMFERENCE = 2 * Math.PI * 33;
+
+// ── Sub-nutrients ──
+const SUB_NUTRIENTS = {
+  'ビタミン': [
+    { key:'vitA', name:'ビタミンA', unit:'μg', goal:900, color:'#f472b6' },
+    { key:'vitB1', name:'ビタミンB1', unit:'mg', goal:1.2, color:'#f9a8d4' },
+    { key:'vitB2', name:'ビタミンB2', unit:'mg', goal:1.4, color:'#ec4899' },
+    { key:'vitB6', name:'ビタミンB6', unit:'mg', goal:1.4, color:'#db2777' },
+    { key:'vitB12', name:'ビタミンB12', unit:'μg', goal:2.4, color:'#be185d' },
+    { key:'vitC', name:'ビタミンC', unit:'mg', goal:100, color:'#fb7185' },
+    { key:'vitD', name:'ビタミンD', unit:'μg', goal:8.5, color:'#f43f5e' },
+    { key:'vitE', name:'ビタミンE', unit:'mg', goal:6.5, color:'#e11d48' },
+  ],
+  'ミネラル': [
+    { key:'calcium', name:'カルシウム', unit:'mg', goal:800, color:'#a78bfa' },
+    { key:'magnesium', name:'マグネシウム', unit:'mg', goal:370, color:'#8b5cf6' },
+    { key:'iron', name:'鉄分', unit:'mg', goal:7.5, color:'#7c3aed' },
+    { key:'zinc', name:'亜鉛', unit:'mg', goal:11, color:'#6d28d9' },
+    { key:'potassium', name:'カリウム', unit:'mg', goal:3000, color:'#5b21b6' },
+    { key:'phosphorus', name:'リン', unit:'mg', goal:1000, color:'#7e22ce' },
+    { key:'manganese', name:'マンガン', unit:'mg', goal:4, color:'#c084fc' },
+  ],
+};
+
+// ── 食品栄養データベース(日本食品標準成分表を参考にした概算値・可食部100gあたり) ──
+// kcal, 糖質, 脂質, たんぱく質, 食物繊維 は g(kcalのみkcal)。ビタミン・ミネラルは各単位(mg/μg)。
+const FOOD_DB = [
+{name:"白米ごはん",kcal:156,"糖質":35.6,"脂質":0.3,"たんぱく質":2.5,"食物繊維":0.3,calcium:3,iron:0.1,magnesium:7,zinc:0.6,potassium:29,phosphorus:34,manganese:0.35,vitA:0,vitB1:0.02,vitB2:0.01,vitB6:0.02,vitB12:0,vitC:0,vitD:0,vitE:0},
+{name:"玄米ごはん",kcal:152,"糖質":34.2,"脂質":1.0,"たんぱく質":2.8,"食物繊維":1.4,calcium:7,iron:0.6,magnesium:49,zinc:0.8,potassium:95,phosphorus:130,manganese:1.04,vitA:0,vitB1:0.16,vitB2:0.02,vitB6:0.21,vitB12:0,vitC:0,vitD:0,vitE:0.5},
+{name:"食パン",kcal:248,"糖質":44.4,"脂質":4.1,"たんぱく質":8.9,"食物繊維":2.3,calcium:22,iron:0.5,magnesium:18,zinc:0.6,potassium:97,phosphorus:67,manganese:0.24,vitA:0,vitB1:0.07,vitB2:0.05,vitB6:0.03,vitB12:0,vitC:0,vitD:0,vitE:0.4},
+{name:"ロールパン",kcal:309,"糖質":48.6,"脂質":9.0,"たんぱく質":10.1,"食物繊維":2.0,calcium:44,iron:0.7,magnesium:19,zinc:0.7,potassium:110,phosphorus:97,manganese:0.24,vitA:8,vitB1:0.1,vitB2:0.06,vitB6:0.05,vitB12:0.1,vitC:0,vitD:0.3,vitE:0.5},
+{name:"うどん(ゆで)",kcal:95,"糖質":20.3,"脂質":0.4,"たんぱく質":2.6,"食物繊維":1.3,calcium:6,iron:0.2,magnesium:6,zinc:0.3,potassium:9,phosphorus:18,manganese:0.15,vitA:0,vitB1:0.02,vitB2:0.01,vitB6:0.01,vitB12:0,vitC:0,vitD:0,vitE:0},
+{name:"そば(ゆで)",kcal:130,"糖質":24.0,"脂質":1.0,"たんぱく質":4.8,"食物繊維":2.9,calcium:9,iron:0.8,magnesium:27,zinc:0.4,potassium:34,phosphorus:80,manganese:0.38,vitA:0,vitB1:0.05,vitB2:0.02,vitB6:0.08,vitB12:0,vitC:0,vitD:0,vitE:0},
+{name:"スパゲッティ(ゆで)",kcal:165,"糖質":30.3,"脂質":0.9,"たんぱく質":5.8,"食物繊維":3.0,calcium:8,iron:0.7,magnesium:20,zinc:0.7,potassium:24,phosphorus:53,manganese:0.42,vitA:0,vitB1:0.06,vitB2:0.02,vitB6:0.04,vitB12:0,vitC:0,vitD:0,vitE:0.2},
+{name:"中華麺(ゆで)",kcal:149,"糖質":29.2,"脂質":0.6,"たんぱく質":4.9,"食物繊維":1.3,calcium:20,iron:0.4,magnesium:9,zinc:0.4,potassium:60,phosphorus:39,manganese:0.35,vitA:0,vitB1:0.02,vitB2:0.01,vitB6:0.02,vitB12:0,vitC:0,vitD:0,vitE:0.2},
+{name:"鶏むね肉(皮なし)",kcal:105,"糖質":0,"脂質":1.9,"たんぱく質":23.3,"食物繊維":0,calcium:4,iron:0.3,magnesium:29,zinc:0.6,potassium:370,phosphorus:220,manganese:0.02,vitA:9,vitB1:0.09,vitB2:0.1,vitB6:0.64,vitB12:0.2,vitC:3,vitD:0.1,vitE:0.3},
+{name:"鶏もも肉(皮なし)",kcal:127,"糖質":0,"脂質":5.0,"たんぱく質":19.0,"食物繊維":0,calcium:5,iron:0.6,magnesium:24,zinc:1.6,potassium:320,phosphorus:190,manganese:0.02,vitA:18,vitB1:0.1,vitB2:0.19,vitB6:0.29,vitB12:0.4,vitC:2,vitD:0.2,vitE:0.5},
+{name:"豚ロース肉(赤身)",kcal:150,"糖質":0.2,"脂質":5.6,"たんぱく質":22.7,"食物繊維":0,calcium:4,iron:0.3,magnesium:24,zinc:2.2,potassium:340,phosphorus:180,manganese:0.02,vitA:6,vitB1:0.8,vitB2:0.15,vitB6:0.32,vitB12:0.3,vitC:1,vitD:0.2,vitE:0.3},
+{name:"豚バラ肉",kcal:366,"糖質":0.1,"脂質":35.4,"たんぱく質":14.2,"食物繊維":0,calcium:3,iron:0.6,magnesium:15,zinc:1.8,potassium:240,phosphorus:130,manganese:0.01,vitA:11,vitB1:0.51,vitB2:0.13,vitB6:0.22,vitB12:0.5,vitC:1,vitD:0.5,vitE:0.5},
+{name:"牛もも肉(赤身)",kcal:176,"糖質":0.5,"脂質":9.2,"たんぱく質":21.3,"食物繊維":0,calcium:4,iron:2.5,magnesium:24,zinc:4.0,potassium:350,phosphorus:180,manganese:0.01,vitA:3,vitB1:0.09,vitB2:0.21,vitB6:0.32,vitB12:1.6,vitC:1,vitD:0,vitE:0.3},
+{name:"牛バラ肉",kcal:371,"糖質":0.1,"脂質":32.9,"たんぱく質":14.4,"食物繊維":0,calcium:4,iron:1.4,magnesium:14,zinc:3.6,potassium:200,phosphorus:110,manganese:0.01,vitA:4,vitB1:0.05,vitB2:0.11,vitB6:0.15,vitB12:1.3,vitC:1,vitD:0,vitE:0.5},
+{name:"合いびき肉",kcal:224,"糖質":0.4,"脂質":15.1,"たんぱく質":19.8,"食物繊維":0,calcium:8,iron:1.6,magnesium:19,zinc:3.9,potassium:280,phosphorus:120,manganese:0.02,vitA:12,vitB1:0.5,vitB2:0.19,vitB6:0.25,vitB12:1.2,vitC:1,vitD:0.1,vitE:0.4},
+{name:"ウインナーソーセージ",kcal:319,"糖質":3.3,"脂質":28.5,"たんぱく質":13.2,"食物繊維":0,calcium:6,iron:0.5,magnesium:12,zinc:1.3,potassium:180,phosphorus:200,manganese:0.03,vitA:2,vitB1:0.35,vitB2:0.12,vitB6:0.15,vitB12:0.5,vitC:25,vitD:0.4,vitE:0.5},
+{name:"卵(全卵・生)",kcal:142,"糖質":0.4,"脂質":9.3,"たんぱく質":12.2,"食物繊維":0,calcium:46,iron:1.5,magnesium:10,zinc:1.1,potassium:130,phosphorus:170,manganese:0.02,vitA:150,vitB1:0.06,vitB2:0.37,vitB6:0.09,vitB12:0.9,vitC:0,vitD:1.8,vitE:1.0},
+{name:"鮭(生)",kcal:133,"糖質":0.1,"脂質":4.1,"たんぱく質":22.3,"食物繊維":0,calcium:14,iron:0.5,magnesium:28,zinc:0.5,potassium:350,phosphorus:240,manganese:0.01,vitA:11,vitB1:0.15,vitB2:0.21,vitB6:0.64,vitB12:5.9,vitC:1,vitD:32,vitE:1.3},
+{name:"さば(生)",kcal:211,"糖質":0.3,"脂質":16.8,"たんぱく質":20.6,"食物繊維":0,calcium:6,iron:1.2,magnesium:30,zinc:1.1,potassium:330,phosphorus:220,manganese:0.01,vitA:37,vitB1:0.21,vitB2:0.31,vitB6:0.59,vitB12:13,vitC:1,vitD:5.1,vitE:1.1},
+{name:"まぐろ(赤身)",kcal:115,"糖質":0.1,"脂質":1.4,"たんぱく質":26.4,"食物繊維":0,calcium:5,iron:1.1,magnesium:45,zinc:0.6,potassium:380,phosphorus:270,manganese:0.01,vitA:83,vitB1:0.1,vitB2:0.05,vitB6:0.85,vitB12:1.3,vitC:2,vitD:5,vitE:0.8},
+{name:"さんま(生)",kcal:287,"糖質":0.1,"脂質":24.6,"たんぱく質":18.1,"食物繊維":0,calcium:28,iron:1.4,magnesium:28,zinc:0.8,potassium:200,phosphorus:180,manganese:0.02,vitA:16,vitB1:0.01,vitB2:0.28,vitB6:0.54,vitB12:16.3,vitC:0,vitD:16,vitE:1.7},
+{name:"えび(むきえび)",kcal:82,"糖質":0.3,"脂質":0.3,"たんぱく質":18.4,"食物繊維":0,calcium:41,iron:0.3,magnesium:37,zinc:1.4,potassium:260,phosphorus:220,manganese:0.02,vitA:3,vitB1:0.02,vitB2:0.03,vitB6:0.06,vitB12:1.4,vitC:1,vitD:0,vitE:1.6},
+{name:"豆腐(木綿)",kcal:73,"糖質":0.8,"脂質":4.2,"たんぱく質":6.7,"食物繊維":0.4,calcium:86,iron:0.9,magnesium:57,zinc:0.6,potassium:110,phosphorus:88,manganese:0.41,vitA:0,vitB1:0.07,vitB2:0.03,vitB6:0.05,vitB12:0,vitC:0,vitD:0,vitE:0.1},
+{name:"豆腐(絹ごし)",kcal:56,"糖質":1.1,"脂質":3.0,"たんぱく質":5.3,"食物繊維":0.3,calcium:57,iron:0.8,magnesium:50,zinc:0.5,potassium:150,phosphorus:68,manganese:0.29,vitA:0,vitB1:0.09,vitB2:0.04,vitB6:0.06,vitB12:0,vitC:0,vitD:0,vitE:0.1},
+{name:"納豆",kcal:190,"糖質":5.4,"脂質":10.0,"たんぱく質":16.5,"食物繊維":6.7,calcium:90,iron:3.3,magnesium:100,zinc:1.9,potassium:660,phosphorus:190,manganese:1.44,vitA:0,vitB1:0.07,vitB2:0.56,vitB6:0.24,vitB12:0,vitC:0,vitD:0,vitE:0.5},
+{name:"牛乳",kcal:61,"糖質":4.8,"脂質":3.8,"たんぱく質":3.3,"食物繊維":0,calcium:110,iron:0,magnesium:10,zinc:0.4,potassium:150,phosphorus:93,manganese:0,vitA:38,vitB1:0.04,vitB2:0.15,vitB6:0.03,vitB12:0.3,vitC:1,vitD:0.3,vitE:0.1},
+{name:"ヨーグルト(無糖)",kcal:56,"糖質":4.9,"脂質":3.0,"たんぱく質":3.6,"食物繊維":0,calcium:120,iron:0,magnesium:12,zinc:0.4,potassium:170,phosphorus:100,manganese:0,vitA:33,vitB1:0.04,vitB2:0.14,vitB6:0.04,vitB12:0.1,vitC:1,vitD:0,vitE:0.1},
+{name:"プロセスチーズ",kcal:339,"糖質":1.3,"脂質":26.0,"たんぱく質":22.7,"食物繊維":0,calcium:630,iron:0.3,magnesium:19,zinc:3.2,potassium:60,phosphorus:730,manganese:0.01,vitA:260,vitB1:0.03,vitB2:0.38,vitB6:0.01,vitB12:3.2,vitC:0,vitD:0,vitE:1.1},
+{name:"キャベツ",kcal:21,"糖質":3.4,"脂質":0.2,"たんぱく質":1.3,"食物繊維":1.8,calcium:43,iron:0.3,magnesium:14,zinc:0.2,potassium:200,phosphorus:27,manganese:0.16,vitA:4,vitB1:0.04,vitB2:0.03,vitB6:0.11,vitB12:0,vitC:41,vitD:0,vitE:0.1},
+{name:"トマト",kcal:19,"糖質":3.7,"脂質":0.1,"たんぱく質":0.7,"食物繊維":1.0,calcium:7,iron:0.2,magnesium:9,zinc:0.1,potassium:210,phosphorus:26,manganese:0.08,vitA:45,vitB1:0.05,vitB2:0.02,vitB6:0.08,vitB12:0,vitC:15,vitD:0,vitE:0.9},
+{name:"きゅうり",kcal:13,"糖質":1.9,"脂質":0.1,"たんぱく質":1.0,"食物繊維":1.1,calcium:26,iron:0.3,magnesium:15,zinc:0.2,potassium:200,phosphorus:36,manganese:0.07,vitA:28,vitB1:0.03,vitB2:0.03,vitB6:0.05,vitB12:0,vitC:14,vitD:0,vitE:0.3},
+{name:"にんじん",kcal:35,"糖質":6.4,"脂質":0.2,"たんぱく質":0.6,"食物繊維":2.4,calcium:26,iron:0.2,magnesium:9,zinc:0.2,potassium:270,phosphorus:25,manganese:0.12,vitA:690,vitB1:0.05,vitB2:0.04,vitB6:0.1,vitB12:0,vitC:5,vitD:0,vitE:0.5},
+{name:"たまねぎ",kcal:33,"糖質":6.9,"脂質":0.1,"たんぱく質":0.7,"食物繊維":1.5,calcium:17,iron:0.2,magnesium:9,zinc:0.2,potassium:150,phosphorus:31,manganese:0.15,vitA:0,vitB1:0.03,vitB2:0.01,vitB6:0.14,vitB12:0,vitC:7,vitD:0,vitE:0},
+{name:"じゃがいも",kcal:59,"糖質":8.4,"脂質":0.1,"たんぱく質":1.3,"食物繊維":8.9,calcium:3,iron:0.4,magnesium:19,zinc:0.2,potassium:410,phosphorus:40,manganese:0.11,vitA:0,vitB1:0.09,vitB2:0.03,vitB6:0.18,vitB12:0,vitC:28,vitD:0,vitE:0},
+{name:"ほうれん草",kcal:18,"糖質":0.3,"脂質":0.4,"たんぱく質":2.2,"食物繊維":2.8,calcium:49,iron:2.0,magnesium:69,zinc:0.7,potassium:690,phosphorus:47,manganese:0.32,vitA:350,vitB1:0.11,vitB2:0.2,vitB6:0.14,vitB12:0,vitC:35,vitD:0,vitE:2.1},
+{name:"ブロッコリー",kcal:33,"糖質":0.8,"脂質":0.5,"たんぱく質":4.3,"食物繊維":4.4,calcium:38,iron:1.0,magnesium:26,zinc:0.7,potassium:360,phosphorus:89,manganese:0.24,vitA:69,vitB1:0.14,vitB2:0.2,vitB6:0.27,vitB12:0,vitC:120,vitD:0,vitE:2.4},
+{name:"もやし",kcal:14,"糖質":1.3,"脂質":0.1,"たんぱく質":1.7,"食物繊維":1.3,calcium:10,iron:0.2,magnesium:8,zinc:0.3,potassium:69,phosphorus:25,manganese:0.06,vitA:0,vitB1:0.04,vitB2:0.05,vitB6:0.05,vitB12:0,vitC:8,vitD:0,vitE:0.1},
+{name:"なす",kcal:18,"糖質":2.9,"脂質":0.1,"たんぱく質":1.1,"食物繊維":2.2,calcium:18,iron:0.3,magnesium:17,zinc:0.2,potassium:220,phosphorus:30,manganese:0.16,vitA:8,vitB1:0.05,vitB2:0.05,vitB6:0.05,vitB12:0,vitC:4,vitD:0,vitE:0.3},
+{name:"大根",kcal:15,"糖質":2.7,"脂質":0.1,"たんぱく質":0.4,"食物繊維":1.3,calcium:23,iron:0.2,magnesium:10,zinc:0.2,potassium:230,phosphorus:17,manganese:0.04,vitA:0,vitB1:0.02,vitB2:0.01,vitB6:0.05,vitB12:0,vitC:11,vitD:0,vitE:0},
+{name:"レタス",kcal:11,"糖質":1.7,"脂質":0.1,"たんぱく質":0.6,"食物繊維":1.1,calcium:19,iron:0.3,magnesium:8,zinc:0.2,potassium:200,phosphorus:22,manganese:0.13,vitA:20,vitB1:0.05,vitB2:0.03,vitB6:0.05,vitB12:0,vitC:5,vitD:0,vitE:0.3},
+{name:"ピーマン",kcal:20,"糖質":2.8,"脂質":0.2,"たんぱく質":0.9,"食物繊維":2.3,calcium:11,iron:0.4,magnesium:11,zinc:0.2,potassium:190,phosphorus:22,manganese:0.1,vitA:33,vitB1:0.03,vitB2:0.03,vitB6:0.19,vitB12:0,vitC:76,vitD:0,vitE:0.8},
+{name:"かぼちゃ",kcal:78,"糖質":17.1,"脂質":0.3,"たんぱく質":1.9,"食物繊維":3.5,calcium:15,iron:0.5,magnesium:15,zinc:0.3,potassium:450,phosphorus:43,manganese:0.15,vitA:330,vitB1:0.07,vitB2:0.09,vitB6:0.22,vitB12:0,vitC:43,vitD:0,vitE:4.9},
+{name:"玉ねぎ(炒め)",kcal:82,"糖質":11.9,"脂質":4.5,"たんぱく質":1.1,"食物繊維":2.0,calcium:20,iron:0.3,magnesium:12,zinc:0.2,potassium:190,phosphorus:38,manganese:0.18,vitA:0,vitB1:0.03,vitB2:0.02,vitB6:0.17,vitB12:0,vitC:6,vitD:0,vitE:1.5},
+{name:"りんご",kcal:56,"糖質":14.3,"脂質":0.1,"たんぱく質":0.2,"食物繊維":1.4,calcium:3,iron:0.1,magnesium:3,zinc:0.1,potassium:120,phosphorus:12,manganese:0.04,vitA:2,vitB1:0.02,vitB2:0,vitB6:0.04,vitB12:0,vitC:4,vitD:0,vitE:0.1},
+{name:"バナナ",kcal:93,"糖質":21.4,"脂質":0.2,"たんぱく質":1.1,"食物繊維":1.1,calcium:6,iron:0.3,magnesium:32,zinc:0.2,potassium:360,phosphorus:27,manganese:0.32,vitA:5,vitB1:0.05,vitB2:0.04,vitB6:0.38,vitB12:0,vitC:16,vitD:0,vitE:0.5},
+{name:"みかん",kcal:49,"糖質":11.0,"脂質":0.1,"たんぱく質":0.7,"食物繊維":1.0,calcium:21,iron:0.2,magnesium:11,zinc:0.1,potassium:150,phosphorus:15,manganese:0.07,vitA:84,vitB1:0.1,vitB2:0.03,vitB6:0.06,vitB12:0,vitC:32,vitD:0,vitE:0.4},
+{name:"いちご",kcal:31,"糖質":7.1,"脂質":0.1,"たんぱく質":0.9,"食物繊維":1.4,calcium:17,iron:0.3,magnesium:13,zinc:0.2,potassium:170,phosphorus:31,manganese:0.2,vitA:1,vitB1:0.03,vitB2:0.02,vitB6:0.04,vitB12:0,vitC:62,vitD:0,vitE:0.4},
+{name:"アボカド",kcal:178,"糖質":2.3,"脂質":17.5,"たんぱく質":2.1,"食物繊維":5.6,calcium:8,iron:0.6,magnesium:34,zinc:0.7,potassium:590,phosphorus:52,manganese:0.19,vitA:7,vitB1:0.09,vitB2:0.2,vitB6:0.29,vitB12:0,vitC:12,vitD:0,vitE:3.3},
+{name:"バター",kcal:700,"糖質":0.2,"脂質":74.5,"たんぱく質":0.6,"食物繊維":0,calcium:15,iron:0.1,magnesium:2,zinc:0.1,potassium:28,phosphorus:15,manganese:0,vitA:520,vitB1:0.01,vitB2:0.03,vitB6:0,vitB12:0.1,vitC:0,vitD:0.6,vitE:1.5},
+{name:"オリーブオイル",kcal:894,"糖質":0,"脂質":100,"たんぱく質":0,"食物繊維":0,calcium:0,iron:0,magnesium:0,zinc:0,potassium:0,phosphorus:0,manganese:0,vitA:0,vitB1:0,vitB2:0,vitB6:0,vitB12:0,vitC:0,vitD:0,vitE:7.4},
+{name:"味噌汁(標準)",kcal:40,"糖質":4.0,"脂質":1.2,"たんぱく質":3.0,"食物繊維":1.0,calcium:20,iron:0.5,magnesium:15,zinc:0.4,potassium:150,phosphorus:45,manganese:0.1,vitA:10,vitB1:0.02,vitB2:0.03,vitB6:0.03,vitB12:0.1,vitC:2,vitD:0,vitE:0.2},
+{name:"カレーライス",kcal:190,"糖質":26.0,"脂質":6.5,"たんぱく質":5.5,"食物繊維":1.6,calcium:20,iron:0.7,magnesium:16,zinc:0.6,potassium:180,phosphorus:60,manganese:0.3,vitA:60,vitB1:0.05,vitB2:0.04,vitB6:0.08,vitB12:0.1,vitC:4,vitD:0,vitE:0.5},
+{name:"ラーメン(醤油)",kcal:130,"糖質":18.0,"脂質":3.5,"たんぱく質":6.0,"食物繊維":1.5,calcium:15,iron:0.5,magnesium:10,zinc:0.4,potassium:130,phosphorus:50,manganese:0.3,vitA:5,vitB1:0.05,vitB2:0.04,vitB6:0.03,vitB12:0.2,vitC:2,vitD:0,vitE:0.2},
+{name:"おにぎり(鮭)",kcal:170,"糖質":36.0,"脂質":1.0,"たんぱく質":4.5,"食物繊維":0.4,calcium:5,iron:0.2,magnesium:10,zinc:0.6,potassium:60,phosphorus:60,manganese:0.4,vitA:5,vitB1:0.03,vitB2:0.03,vitB6:0.05,vitB12:0.5,vitC:0,vitD:2,vitE:0.2},
+{name:"から揚げ",kcal:290,"糖質":9.0,"脂質":18.0,"たんぱく質":20.0,"食物繊維":0.3,calcium:10,iron:0.6,magnesium:22,zinc:0.9,potassium:280,phosphorus:170,manganese:0.05,vitA:15,vitB1:0.1,vitB2:0.12,vitB6:0.3,vitB12:0.3,vitC:1,vitD:0.2,vitE:1.0},
+{name:"焼き魚(鮭)",kcal:150,"糖質":0.1,"脂質":6.0,"たんぱく質":24.0,"食物繊維":0,calcium:16,iron:0.5,magnesium:30,zinc:0.5,potassium:400,phosphorus:270,manganese:0.01,vitA:14,vitB1:0.17,vitB2:0.24,vitB6:0.7,vitB12:6.5,vitC:1,vitD:38,vitE:1.5},
+{name:"卵焼き",kcal:150,"糖質":3.0,"脂質":9.5,"たんぱく質":11.0,"食物繊維":0,calcium:35,iron:1.3,magnesium:9,zinc:1.0,potassium:110,phosphorus:150,manganese:0.02,vitA:130,vitB1:0.05,vitB2:0.32,vitB6:0.08,vitB12:0.8,vitC:0,vitD:1.5,vitE:0.9},
+{name:"サラダ(グリーン・ドレッシングなし)",kcal:18,"糖質":2.2,"脂質":0.2,"たんぱく質":1.1,"食物繊維":1.7,calcium:30,iron:0.4,magnesium:12,zinc:0.2,potassium:230,phosphorus:30,manganese:0.15,vitA:60,vitB1:0.04,vitB2:0.04,vitB6:0.08,vitB12:0,vitC:20,vitD:0,vitE:0.5},
+{name:"みそ煮込みうどん",kcal:150,"糖質":24.0,"脂質":2.5,"たんぱく質":6.5,"食物繊維":2.0,calcium:30,iron:0.7,magnesium:15,zinc:0.5,potassium:150,phosphorus:70,manganese:0.2,vitA:20,vitB1:0.05,vitB2:0.05,vitB6:0.05,vitB12:0.2,vitC:2,vitD:0,vitE:0.2},
+{name:"コーヒー(ブラック)",kcal:4,"糖質":0.7,"脂質":0,"たんぱく質":0.2,"食物繊維":0,calcium:2,iron:0,magnesium:6,zinc:0,potassium:65,phosphorus:7,manganese:0,vitA:0,vitB1:0,vitB2:0.01,vitB6:0,vitB12:0,vitC:0,vitD:0,vitE:0},
+{name:"緑茶",kcal:2,"糖質":0.2,"脂質":0,"たんぱく質":0.2,"食物繊維":0,calcium:3,iron:0.2,magnesium:2,zinc:0,potassium:27,phosphorus:2,manganese:0.31,vitA:0,vitB1:0,vitB2:0.05,vitB6:0.01,vitB12:0,vitC:6,vitD:0,vitE:0},
+{name:"豆乳",kcal:44,"糖質":2.9,"脂質":2.0,"たんぱく質":3.6,"食物繊維":0.2,calcium:15,iron:1.2,magnesium:25,zinc:0.3,potassium:190,phosphorus:49,manganese:0.4,vitA:0,vitB1:0.03,vitB2:0.02,vitB6:0.06,vitB12:0,vitC:0,vitD:0,vitE:0.1},
+{name:"アーモンド",kcal:609,"糖質":9.3,"脂質":51.8,"たんぱく質":19.6,"食物繊維":10.1,calcium:250,iron:3.6,magnesium:270,zinc:3.6,potassium:760,phosphorus:460,manganese:2.32,vitA:1,vitB1:0.2,vitB2:1.06,vitB6:0.09,vitB12:0,vitC:0,vitD:0,vitE:29.4},
+{name:"さつまいも",kcal:126,"糖質":29.7,"脂質":0.2,"たんぱく質":1.2,"食物繊維":2.8,calcium:36,iron:0.6,magnesium:24,zinc:0.2,potassium:480,phosphorus:47,manganese:0.37,vitA:2,vitB1:0.11,vitB2:0.04,vitB6:0.26,vitB12:0,vitC:29,vitD:0,vitE:1.5},
+{name:"きのこ(しめじ)",kcal:17,"糖質":1.3,"脂質":0.3,"たんぱく質":2.7,"食物繊維":3.0,calcium:1,iron:0.4,magnesium:8,zinc:0.5,potassium:370,phosphorus:96,manganese:0.15,vitA:0,vitB1:0.15,vitB2:0.17,vitB6:0.09,vitB12:0,vitC:0,vitD:0.5,vitE:0},
+{name:"わかめ(生)",kcal:16,"糖質":2.0,"脂質":0.2,"たんぱく質":1.9,"食物繊維":3.6,calcium:100,iron:0.5,magnesium:110,zinc:0.3,potassium:730,phosphorus:36,manganese:0.05,vitA:14,vitB1:0.05,vitB2:0.08,vitB6:0.02,vitB12:0.2,vitC:15,vitD:0,vitE:0.2},
+{name:"チキンナゲット",kcal:250,"糖質":14.0,"脂質":15.0,"たんぱく質":14.5,"食物繊維":1.0,calcium:15,iron:0.6,magnesium:15,zinc:0.7,potassium:200,phosphorus:150,manganese:0.1,vitA:10,vitB1:0.08,vitB2:0.08,vitB6:0.15,vitB12:0.2,vitC:1,vitD:0.1,vitE:1.0},
+{name:"ポテトサラダ",kcal:120,"糖質":11.0,"脂質":7.5,"たんぱく質":2.0,"食物繊維":1.5,calcium:15,iron:0.3,magnesium:12,zinc:0.2,potassium:250,phosphorus:40,manganese:0.15,vitA:20,vitB1:0.07,vitB2:0.03,vitB6:0.15,vitB12:0.1,vitC:15,vitD:0,vitE:1.5},
+{name:"ハンバーグ",kcal:223,"糖質":9.0,"脂質":14.5,"たんぱく質":15.5,"食物繊維":0.8,calcium:20,iron:1.5,magnesium:18,zinc:2.5,potassium:280,phosphorus:130,manganese:0.1,vitA:20,vitB1:0.3,vitB2:0.18,vitB6:0.2,vitB12:1.0,vitC:2,vitD:0.2,vitE:0.5},
+{name:"餃子",kcal:210,"糖質":20.0,"脂質":10.5,"たんぱく質":8.0,"食物繊維":1.5,calcium:20,iron:0.8,magnesium:15,zinc:0.9,potassium:180,phosphorus:80,manganese:0.2,vitA:15,vitB1:0.15,vitB2:0.08,vitB6:0.1,vitB12:0.2,vitC:5,vitD:0,vitE:0.5},
+{name:"チャーハン",kcal:220,"糖質":32.0,"脂質":6.5,"たんぱく質":6.0,"食物繊維":0.8,calcium:15,iron:0.5,magnesium:12,zinc:0.7,potassium:130,phosphorus:80,manganese:0.4,vitA:20,vitB1:0.05,vitB2:0.06,vitB6:0.08,vitB12:0.2,vitC:2,vitD:0.2,vitE:0.5},
+{name:"味噌",kcal:192,"糖質":14.4,"脂質":6.0,"たんぱく質":12.5,"食物繊維":4.9,calcium:100,iron:4.0,magnesium:75,zinc:1.1,potassium:380,phosphorus:170,manganese:0.9,vitA:0,vitB1:0.03,vitB2:0.1,vitB6:0.11,vitB12:0.1,vitC:0,vitD:0,vitE:0.5},
+{name:"ヨーグルトドリンク",kcal:64,"糖質":12.2,"脂質":0.5,"たんぱく質":2.6,"食物繊維":0,calcium:90,iron:0,magnesium:9,zinc:0.3,potassium:130,phosphorus:75,manganese:0,vitA:5,vitB1:0.03,vitB2:0.13,vitB6:0.03,vitB12:0.2,vitC:1,vitD:0,vitE:0},
+];
+
+// Track which detail panel is open: null | 'ビタミン' | 'ミネラル'
+let openDetailPanel = null;
+
+// ── State ──
+let goals = JSON.parse(localStorage.getItem('nr_goals') || 'null') || {...DEFAULT_GOALS};
+let kcalGoal = parseFloat(localStorage.getItem('nr_kcal_goal') || '2000');
+
+// Date key: "YYYY-MM-DD"
+function dateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+const todayKey = dateKey(new Date());
+let selectedKey = todayKey; // currently viewed date
+
+// Calendar nav state
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+
+// Per-day meals storage: { "2025-01-15": [...meals] }
+function getAllDayData() {
+  return JSON.parse(localStorage.getItem('nr_days') || '{}');
+}
+function getMeals(key) {
+  return getAllDayData()[key] || [];
+}
+function setMeals(key, meals) {
+  const all = getAllDayData();
+  all[key] = meals;
+  localStorage.setItem('nr_days', JSON.stringify(all));
+}
+
+function save() {
+  localStorage.setItem('nr_goals', JSON.stringify(goals));
+  localStorage.setItem('nr_kcal_goal', kcalGoal);
+  localStorage.setItem('nr_water_goal', waterGoalL);
+}
+
+// ── Salt ──
+let saltGoalG = parseFloat(localStorage.getItem('nr_salt_goal') || '8');
+
+function getSaltG(key) {
+  const all = JSON.parse(localStorage.getItem('nr_salt') || '{}');
+  return parseFloat(all[key] || 0);
+}
+function saveSaltG(key, grams) {
+  const val = Math.max(0, Math.round(grams * 10) / 10);
+  const all = JSON.parse(localStorage.getItem('nr_salt') || '{}');
+  all[key] = val;
+  localStorage.setItem('nr_salt', JSON.stringify(all));
+  return val;
+}
+function adjustSalt(delta) {
+  const current = getSaltG(selectedKey);
+  const next = saveSaltG(selectedKey, current + delta);
+  renderSalt();
+}
+
+function setSaltDirect(val) {
+  const g = parseFloat(val) || 0;
+  saveSaltG(selectedKey, g);
+  renderSalt(true);
+}
+function startEditSaltGoal() {
+  const label = document.getElementById('saltGoalText');
+  const input = document.getElementById('saltGoalInput');
+  label.style.display = 'none';
+  input.style.display = 'inline-block';
+  input.value = saltGoalG.toFixed(1);
+  input.focus(); input.select();
+}
+function commitSaltGoal(val) {
+  const v = parseFloat(val);
+  const label = document.getElementById('saltGoalText');
+  const input = document.getElementById('saltGoalInput');
+  input.style.display = 'none';
+  label.style.display = '';
+  if (!isNaN(v) && v > 0) {
+    saltGoalG = Math.round(v * 10) / 10;
+    localStorage.setItem('nr_salt_goal', saltGoalG);
+  }
+  renderSalt();
+}
+function renderSalt(skipInput) {
+  const g = getSaltG(selectedKey);
+  const pct = saltGoalG > 0 ? Math.min((g / saltGoalG) * 100, 100) : 0;
+  const isOver = g > saltGoalG;
+
+  const inputEl = document.getElementById('saltInput');
+  const barEl = document.getElementById('saltBarFill');
+  const pctEl = document.getElementById('saltPct');
+  const goalEl = document.getElementById('saltGoalText');
+
+  if (inputEl && !skipInput) inputEl.value = g.toFixed(1);
+  if (barEl) {
+    barEl.style.width = pct + '%';
+    barEl.style.background = isOver
+      ? 'linear-gradient(90deg,#f87171,#ef4444)'
+      : 'linear-gradient(90deg,#a855f7,#7c3aed)';
+  }
+  if (pctEl) { pctEl.textContent = pct.toFixed(0) + '%'; pctEl.className = isOver ? 'salt-over' : ''; }
+  if (goalEl) goalEl.textContent = `目標上限 ${saltGoalG}g`;
+}
+
+// ── Water ──
+let waterGoalL = parseFloat(localStorage.getItem('nr_water_goal') || '2.0');
+
+function getWaterL(key) {
+  const all = JSON.parse(localStorage.getItem('nr_water') || '{}');
+  return parseFloat(all[key] || 0);
+}
+function saveWaterL(key, litres) {
+  const val = Math.max(0, Math.round(litres * 10) / 10);
+  const all = JSON.parse(localStorage.getItem('nr_water') || '{}');
+  all[key] = val;
+  localStorage.setItem('nr_water', JSON.stringify(all));
+  return val;
+}
+function adjustWater(delta) {
+  const current = getWaterL(selectedKey);
+  const next = saveWaterL(selectedKey, current + delta);
+  renderWater();
+}
+function setWaterDirect(val) {
+  const litres = parseFloat(val) || 0;
+  saveWaterL(selectedKey, litres);
+  renderWater(true); // skip syncing input to avoid loop
+}
+function startEditWaterGoal() {
+  const label = document.getElementById('waterGoalText');
+  const input = document.getElementById('waterGoalInput');
+  label.style.display = 'none';
+  input.style.display = 'block';
+  input.value = waterGoalL.toFixed(1);
+  input.focus();
+  input.select();
+}
+function commitWaterGoal(val) {
+  const v = parseFloat(val);
+  const label = document.getElementById('waterGoalText');
+  const input = document.getElementById('waterGoalInput');
+  input.style.display = 'none';
+  label.style.display = '';
+  if (!isNaN(v) && v > 0) {
+    waterGoalL = Math.round(v * 10) / 10;
+    localStorage.setItem('nr_water_goal', waterGoalL);
+    // Sync goal tab input if visible
+    const goalInput = document.getElementById('goal_water');
+    if (goalInput) goalInput.value = waterGoalL.toFixed(1);
+  }
+  renderWater();
+}
+
+function renderWater(skipInput) {
+  const litres = getWaterL(selectedKey);
+  const pct = Math.min((litres / waterGoalL) * 100, 100);
+
+  const litersEl = document.getElementById('waterLiters');
+  const barEl = document.getElementById('waterBarFill');
+  const inputEl = document.getElementById('waterInput');
+  const goalEl = document.getElementById('waterGoalText');
+
+  if (litersEl) litersEl.textContent = litres.toFixed(1);
+  if (barEl) barEl.style.height = pct + '%';
+  if (inputEl && !skipInput) inputEl.value = litres.toFixed(1);
+  if (goalEl) {
+    goalEl.textContent = `目標 ${waterGoalL.toFixed(1)}L`;
+    goalEl.style.display = '';
+    const inp = document.getElementById('waterGoalInput');
+    if (inp) inp.style.display = 'none';
+  }
+}
+
+// ── Chart ──
+const radarChart = new Chart(document.getElementById('radarChart').getContext('2d'), {
+  type: 'radar',
+  data: {
+    labels: NUTRIENTS,
+    datasets: [
+      { label:'目標', data:[100,100,100,100,100,100], borderColor:'#d1fae5', borderWidth:1, borderDash:[5,3], pointRadius:0, fill:false },
+      { label:'達成率', data:[0,0,0,0,0,0], borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.18)', borderWidth:2.5, pointBackgroundColor:'#10b981', pointBorderColor:'#fff', pointBorderWidth:2, pointRadius:4 }
+    ]
+  },
+  options: {
+    animation: { duration: 600 },
+    scales: { r: { min:0, max:120, ticks:{display:false}, grid:{color:'#d1fae5'}, angleLines:{color:'#d1fae5'},
+        pointLabels:{
+          font:{size:11,weight:'600'},color:'#374151',
+          padding: 6,
+          callback: function(label) {
+
+            return label;
+          }
+        }
+      }
+    },
+    plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.raw.toFixed(1)}% 達成`}} }
+  }
+});
+
+// ── Calendar ──
+function renderCalendar() {
+  const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('calMonthLabel').textContent = `${calYear}年 ${monthNames[calMonth]}`;
+
+  const allData = getAllDayData();
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  // First day of month & padding
+  const firstDay = new Date(calYear, calMonth, 1);
+  const startDow = firstDay.getDay(); // 0=Sun
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
+
+  let html = '';
+  // Prev month padding
+  for (let i = startDow - 1; i >= 0; i--) {
+    html += `<button class="cal-day other-month" disabled><span class="cal-day-num">${daysInPrevMonth - i}</span></button>`;
+  }
+  // This month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(calYear, calMonth, d);
+    const key = dateKey(dt);
+    const isToday = dt.getTime() === today.getTime();
+    const isSelected = key === selectedKey;
+    const hasMeals = allData[key] && allData[key].length > 0;
+    const totalKcal = hasMeals ? allData[key].reduce((s,m)=>s+(m.kcal||0),0) : 0;
+    const isOver = kcalGoal > 0 && totalKcal > kcalGoal;
+
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (isSelected) cls += ' selected';
+
+    html += `<button class="${cls}"
+      onclick="handleCalDayClick(event,'${key}')"
+      oncontextmenu="showDaySummary(event,'${key}');return false;">
+      <span class="cal-day-num">${d}</span>
+      ${hasMeals ? `<span class="cal-dot${isOver?' over':''}"></span>` : '<span style="width:5px;height:5px"></span>'}
+    </button>`;
+  }
+  // Next month padding
+  const totalCells = Math.ceil((startDow + daysInMonth) / 7) * 7;
+  const nextPad = totalCells - startDow - daysInMonth;
+  for (let i = 1; i <= nextPad; i++) {
+    html += `<button class="cal-day other-month" disabled><span class="cal-day-num">${i}</span></button>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+
+  // Date display
+  const sel = new Date(selectedKey + 'T00:00:00');
+  const isSelectedToday = selectedKey === todayKey;
+  document.getElementById('calDateDisplay').textContent = isSelectedToday
+    ? '今日を表示中'
+    : `${sel.getFullYear()}年${sel.getMonth()+1}月${sel.getDate()}日 を表示中`;
+}
+
+function selectDate(key) {
+  selectedKey = key;
+  autoAddMeals(key);
+  renderCalendar();
+  updateAll();
+  renderWater();
+  renderSalt();
+  closeForm();
+}
+
+function changeMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+function goToday() {
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+  selectedKey = todayKey;
+  autoAddMeals(todayKey);
+  renderCalendar();
+  updateAll();
+  renderWater();
+  renderSalt();
+}
+
+// ── Goal fields ──
+function renderGoalFields() {
+  document.getElementById('goalFields').innerHTML =
+    `<div class="calorie-goal-field" style="background:#eff6ff;border-color:#bfdbfe40">
+      <label style="color:#1d4ed8">💧 1日の水分目標</label>
+      <div class="calorie-goal-input-wrap">
+        <input class="calorie-goal-input" type="number" inputmode="decimal" min="0" max="10" step="0.1" id="goal_water" value="${waterGoalL.toFixed(1)}" style="color:#1d4ed8;background:#dbeafe20;border-color:#93c5fd" oninput="previewWaterGoal(this.value)">
+        <span class="calorie-goal-unit" style="color:#1d4ed8">L</span>
+      </div>
+    </div>` +
+    `<div class="calorie-goal-field">
+      <label>🔥 1日のカロリー目標</label>
+      <div class="calorie-goal-input-wrap">
+        <input class="calorie-goal-input" type="number" inputmode="decimal" min="0" id="goal_kcal" value="${kcalGoal}">
+        <span class="calorie-goal-unit">kcal</span>
+      </div>
+    </div>` +
+    NUTRIENTS.map(k => `
+    <div class="goal-field">
+      <div class="goal-field-top">
+        <label style="color:${COLORS[k]}">${k}</label>
+        <span>単位: ${UNITS[k]}</span>
+      </div>
+      <div class="goal-input-wrap">
+        <input class="goal-input" type="number" inputmode="decimal" min="0" id="goal_${k}"
+          value="${goals[k]}" style="border:1.5px solid ${COLORS[k]}40;background:${COLORS[k]}08">
+        <span class="goal-unit" style="color:${COLORS[k]}">${UNITS[k]}</span>
+      </div>
+    </div>`).join('') +
+    `<button class="save-btn" id="saveBtn" onclick="saveGoals()">目標を保存する</button>`;
+}
+
+function previewWaterGoal(val) {
+  const v = parseFloat(val);
+  if (!isNaN(v) && v >= 0) {
+    waterGoalL = v;
+    renderWater();
+  }
+}
+
+function saveGoals() {
+  const wv = parseFloat(document.getElementById('goal_water').value);
+  if (!isNaN(wv) && wv >= 0) waterGoalL = wv;
+  const kv = parseFloat(document.getElementById('goal_kcal').value);
+  if (!isNaN(kv) && kv >= 0) kcalGoal = kv;
+  NUTRIENTS.forEach(k => {
+    const v = parseFloat(document.getElementById('goal_'+k).value);
+    if (!isNaN(v) && v >= 0) goals[k] = v;
+  });
+  save(); renderCalendar(); updateAll(); renderWater();
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '✓ 保存しました!'; btn.classList.add('saved');
+  setTimeout(() => { btn.textContent = '目標を保存する'; btn.classList.remove('saved'); }, 2000);
+}
+
+// ── Nutrient inputs ──
+function renderNutrientInputs() {
+  document.getElementById('nutrientInputs').innerHTML = NUTRIENTS.map(k => `
+    <div class="nutrient-field">
+      <label style="color:${COLORS[k]}">${k} (${UNITS[k]})</label>
+      <input class="nutrient-input" type="number" inputmode="decimal" min="0" placeholder="0" id="input_${k}">
+    </div>`).join('');
+  renderSubNutrientInputs();
+}
+
+function renderSubNutrientInputs() {
+  const section = document.getElementById('subNutrientSection');
+  if (!section) return;
+  let html = '';
+  ['ビタミン','ミネラル'].forEach(parent => {
+    const subs = SUB_NUTRIENTS[parent];
+    const color = COLORS[parent];
+    html += `<div style="margin-top:10px">
+      <button type="button" onclick="toggleSubSection('${parent}')"
+        style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:${color}12;border:1.5px solid ${color}30;border-radius:10px;cursor:pointer;font-size:12px;font-weight:700;color:${color}">
+        <span>▸ ${parent}の詳細を入力する</span>
+        <span id="subToggleIcon_${parent}" style="transition:transform 0.2s">▾</span>
+      </button>
+      <div id="subSection_${parent}" style="display:none;margin-top:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          ${subs.map(s => `
+            <div class="nutrient-field">
+              <label style="color:${s.color};font-size:10px">${s.name}<br><span style="font-weight:400">(${s.unit})</span></label>
+              <input class="nutrient-input" type="number" inputmode="decimal" min="0" placeholder="0" id="input_${s.key}" style="font-size:14px;padding:8px">
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+  section.innerHTML = html;
+}
+
+function toggleSubSection(parent) {
+  const el = document.getElementById('subSection_' + parent);
+  const icon = document.getElementById('subToggleIcon_' + parent);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    el.style.display = 'none';
+    icon.style.transform = '';
+  }
+}
+
+// ── フル食品データベース(文科省 日本食品標準成分表 全2,478品目)の読み込み ──
+// ↓ 自分のGitHubリポジトリを作成しfood-data.jsonを置いたら、このURLを書き換えてください
+// 例: https://raw.githubusercontent.com/【あなたのユーザー名】/【リポジトリ名】/main/food-data.json
+const FOOD_DATA_URL = "https://raw.githubusercontent.com/shobonneko1992-alt/nutrition-rader2/main/food-data.json";
+const FOOD_DATA_CACHE_KEY = "nutritionRadar_fullFoodData_v1";
+
+let FOOD_DB_FULL = null; // フルデータ読み込み後にここへ格納
+
+async function loadFullFoodDatabase() {
+  // まずキャッシュを確認(初回以降はネットワーク不要)
+  try {
+    const cached = localStorage.getItem(FOOD_DATA_CACHE_KEY);
+    if (cached) {
+      FOOD_DB_FULL = JSON.parse(cached);
+      return;
+    }
+  } catch (e) { /* キャッシュ破損時は無視して再取得 */ }
+
+  if (!FOOD_DATA_URL || FOOD_DATA_URL.includes("YOUR_USERNAME")) return; // 未設定なら何もしない
+
+  try {
+    const res = await fetch(FOOD_DATA_URL);
+    if (!res.ok) throw new Error("fetch failed: " + res.status);
+    const raw = await res.json();
+    // food-data.json は既にアプリ内部フォーマット({name, kcal, 糖質, 脂質, ...}) で保存済みなのでそのまま使う
+    FOOD_DB_FULL = raw.filter(f => f && f.name);
+    localStorage.setItem(FOOD_DATA_CACHE_KEY, JSON.stringify(FOOD_DB_FULL));
+    console.log(`食品データベースを読み込みました: ${FOOD_DB_FULL.length}件`);
+  } catch (e) {
+    console.warn("フル食品データベースの取得に失敗しました。内蔵データのみ使用します。", e);
+  }
+}
+loadFullFoodDatabase();
+
+// ── Food Search (文科省 日本食品標準成分表ベースの内蔵データを検索) ──
+let _pendingFood = null; // グラム入力モーダルで選択中の食品
+
+function onMealNameInput() {
+  const box = document.getElementById('foodSuggestions');
+  const q = document.getElementById('mealName').value.trim();
+  if (!q) { box.classList.remove('show'); box.innerHTML = ''; return; }
+
+  // フルデータが読み込み済みならそちらを優先(件数が多いため)、なければ内蔵の厳選データを使う
+  const source = (FOOD_DB_FULL && FOOD_DB_FULL.length) ? FOOD_DB_FULL : FOOD_DB;
+  const matches = source.filter(f => f.name.includes(q)).slice(0, 8);
+  if (matches.length === 0) {
+    box.innerHTML = `<div class="food-suggestion-hint">一致する食品が見つかりません（手入力できます）</div>`;
+    box.classList.add('show');
+    return;
+  }
+  box.innerHTML = matches.map(f => `
+    <div class="food-suggestion-item" onmousedown="event.preventDefault()" onclick="pickFoodSuggestion(${source.indexOf(f)}, ${(FOOD_DB_FULL && FOOD_DB_FULL.length) ? 'true' : 'false'})">
+      <span class="food-suggestion-name">${f.name}</span>
+      <span class="food-suggestion-kcal">${f.kcal} kcal /100g</span>
+    </div>`).join('');
+  box.classList.add('show');
+}
+
+function hideFoodSuggestions() {
+  const box = document.getElementById('foodSuggestions');
+  if (box) { box.classList.remove('show'); box.innerHTML = ''; }
+}
+
+function pickFoodSuggestion(idx, fromFull) {
+  const source = fromFull ? FOOD_DB_FULL : FOOD_DB;
+  const food = source[idx];
+  if (!food) return;
+  hideFoodSuggestions();
+  _pendingFood = food;
+  document.getElementById('gramModalFoodName').textContent = food.name;
+  document.getElementById('gramInput').value = 100;
+  document.getElementById('gramModal').classList.add('show');
+  setTimeout(() => document.getElementById('gramInput').focus(), 50);
+}
+
+function setGramValue(g) {
+  document.getElementById('gramInput').value = g;
+}
+
+function closeGramModal() {
+  document.getElementById('gramModal').classList.remove('show');
+  _pendingFood = null;
+}
+
+function confirmGramModal() {
+  const g = parseFloat(document.getElementById('gramInput').value);
+  if (!_pendingFood || !g || g <= 0) { document.getElementById('gramInput').focus(); return; }
+  applyFoodToForm(_pendingFood, g);
+  document.getElementById('gramModal').classList.remove('show');
+  _pendingFood = null;
+}
+
+// 100gあたりの値をグラム数に応じてスケールし、フォームへ反映する
+function applyFoodToForm(food, grams) {
+  const scale = grams / 100;
+  const round1 = v => Math.round((v || 0) * scale * 10) / 10;
+
+  document.getElementById('mealName').value = food.name + `（${grams}g）`;
+  const ki = document.getElementById('input_kcal');
+  if (ki) ki.value = round1(food.kcal);
+
+  NUTRIENTS.forEach(k => {
+    const e = document.getElementById('input_' + k);
+    if (e && food.hasOwnProperty(k)) e.value = round1(food[k]);
+  });
+
+  // ビタミン・ミネラルの詳細値を反映し、詳細セクションを開く
+  ['ビタミン', 'ミネラル'].forEach(parent => {
+    const subs = SUB_NUTRIENTS[parent];
+    let hasAny = false;
+    subs.forEach(s => {
+      const e = document.getElementById('input_' + s.key);
+      if (e && food.hasOwnProperty(s.key)) {
+        e.value = round1(food[s.key]);
+        hasAny = true;
+      }
+    });
+    if (hasAny) {
+      const sec = document.getElementById('subSection_' + parent);
+      const ico = document.getElementById('subToggleIcon_' + parent);
+      if (sec) sec.style.display = 'block';
+      if (ico) ico.style.transform = 'rotate(180deg)';
+      // サブ栄養素の平均達成率を概算して上位%欄にも反映
+      const topInput = document.getElementById('input_' + parent);
+      if (topInput) {
+        const pcts = subs.map(s => (food[s.key] || 0) * scale / s.goal * 100).filter(v => v >= 0);
+        const avgPct = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+        topInput.value = Math.round(avgPct * 10) / 10;
+      }
+    }
+  });
+
+  showToast(`✅ ${food.name}（${grams}g）の栄養素を反映しました`);
+}
+
+// 候補ボックス外をタップしたら閉じる
+document.addEventListener('click', function (e) {
+  const box = document.getElementById('foodSuggestions');
+  const input = document.getElementById('mealName');
+  if (!box || !input) return;
+  if (e.target === input || box.contains(e.target)) return;
+  hideFoodSuggestions();
+});
+
+document.getElementById('gramModal').addEventListener('click', function (e) {
+  if (e.target === this) closeGramModal();
+});
+
+// ── Form ──
+let _editingMealId = null;
+
+// ── Meal Colors ──
+const MEAL_COLORS = [
+  { color: '#e5e7eb', label: 'なし' },
+  { color: '#fca5a5', label: '赤' },
+  { color: '#fdba74', label: 'オレンジ' },
+  { color: '#fcd34d', label: '黄' },
+  { color: '#86efac', label: '緑' },
+  { color: '#67e8f9', label: '水色' },
+  { color: '#93c5fd', label: '青' },
+  { color: '#c4b5fd', label: '紫' },
+  { color: '#f9a8d4', label: 'ピンク' },
+];
+let _selectedColor = '#e5e7eb';
+let _selectedMealCategory = 'その他';
+
+function renderColorSwatches(selectedColor) {
+  _selectedColor = selectedColor || '#e5e7eb';
+  document.querySelectorAll('.color-swatch').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.color === _selectedColor);
+  });
+}
+
+function selectColor(color, btn) {
+  _selectedColor = color;
+  document.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('selected'));
+  if (btn) btn.classList.add('selected');
+}
+
+function selectMealCategory(cat, btn) {
+  _selectedMealCategory = cat;
+  document.querySelectorAll('.meal-cat-btn').forEach(b => b.classList.remove('selected'));
+  if (btn) btn.classList.add('selected');
+}
+
+function renderMealCategoryPicker(cat) {
+  _selectedMealCategory = cat || 'その他';
+  document.querySelectorAll('.meal-cat-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.cat === _selectedMealCategory);
+  });
+}
+
+function openForm() {
+  _editingMealId = null;
+  document.getElementById('formTitle').textContent = '食事を記録';
+  document.getElementById('submitBtn').textContent = '追加する';
+  document.getElementById('openFormBtn').classList.add('hidden');
+  document.getElementById('mealForm').classList.remove('hidden');
+  renderColorSwatches('#e5e7eb');
+  renderMealCategoryPicker('その他');
+  document.getElementById('mealName').focus();
+}
+
+function editMeal(id) {
+  const meals = getMeals(selectedKey);
+  const meal = meals.find(m => String(m.id) === String(id));
+  if (!meal) return;
+  _editingMealId = id;
+
+  // Show form with meal data
+  document.getElementById('openFormBtn').classList.add('hidden');
+  document.getElementById('mealForm').classList.remove('hidden');
+  document.getElementById('formTitle').textContent = '食事を編集';
+  document.getElementById('submitBtn').textContent = '保存する';
+
+  // Fill form fields
+  document.getElementById('mealName').value = meal.name || '';
+  renderMealCategoryPicker(meal.category || 'その他');
+  const ki = document.getElementById('input_kcal');
+  if (ki) ki.value = meal.kcal || '';
+  NUTRIENTS.forEach(k => { const e = document.getElementById('input_'+k); if(e) e.value = meal[k] || ''; });
+  // Fill sub-nutrients
+  ['ビタミン','ミネラル'].forEach(p => {
+    SUB_NUTRIENTS[p].forEach(s => {
+      const e = document.getElementById('input_'+s.key);
+      if (e && meal[s.key]) {
+        e.value = meal[s.key];
+        // Show sub section if has data
+        const sec = document.getElementById('subSection_'+p);
+        const ico = document.getElementById('subToggleIcon_'+p);
+        if (sec) sec.style.display = 'block';
+        if (ico) ico.style.transform = 'rotate(180deg)';
+      }
+    });
+  });
+  document.getElementById('mealName').focus();
+}
+
+function closeForm() {
+  _editingMealId = null;
+  document.getElementById('openFormBtn').classList.remove('hidden');
+  document.getElementById('mealForm').classList.add('hidden');
+  document.getElementById('mealName').value = '';
+  renderMealCategoryPicker('その他');
+  const ki = document.getElementById('input_kcal');
+  if (ki) ki.value = '';
+  NUTRIENTS.forEach(k => { const e = document.getElementById('input_'+k); if(e) e.value = ''; });
+  ['ビタミン','ミネラル'].forEach(p => {
+    SUB_NUTRIENTS[p].forEach(s => { const e = document.getElementById('input_'+s.key); if(e) e.value = ''; });
+    const sec = document.getElementById('subSection_'+p);
+    const ico = document.getElementById('subToggleIcon_'+p);
+    if(sec) sec.style.display = 'none';
+    if(ico) ico.style.transform = '';
+  });
+}
+
+function submitMeal() {
+  if (_editingMealId) {
+    updateMeal(_editingMealId);
+  } else {
+    addMeal();
+  }
+}
+
+function updateMeal(id) {
+  const name = document.getElementById('mealName').value.trim();
+  if (!name) { document.getElementById('mealName').focus(); return; }
+  const meals = getMeals(selectedKey);
+  const idx = meals.findIndex(m => String(m.id) === String(id));
+  if (idx === -1) return;
+  const updated = { ...meals[idx], name, color: _selectedColor, category: _selectedMealCategory };
+  updated.kcal = parseFloat(document.getElementById('input_kcal').value) || 0;
+  NUTRIENTS.forEach(k => { updated[k] = parseFloat(document.getElementById('input_'+k).value) || 0; });
+  ['ビタミン','ミネラル'].forEach(p => {
+    SUB_NUTRIENTS[p].forEach(s => { updated[s.key] = parseFloat(document.getElementById('input_'+s.key)?.value) || 0; });
+  });
+  if (updated.kcal === 0) {
+    updated.kcal = Math.round((updated['糖質']||0)*4 + (updated['脂質']||0)*9 + (updated['たんぱく質']||0)*4);
+  }
+  meals[idx] = updated;
+  setMeals(selectedKey, meals);
+  closeForm(); renderCalendar(); updateAll();
+  showToast('✅ 食事を更新しました');
+}
+
+// 保存されたカテゴリを返す（未設定の場合は「その他」）
+function guessMealCategory(meal) {
+  return (meal && meal.category) ? meal.category : 'その他';
+}
+
+function addMeal() {
+  const name = document.getElementById('mealName').value.trim();
+  if (!name) { document.getElementById('mealName').focus(); return; }
+  const meal = { id: Date.now(), name, time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}), color: _selectedColor, category: _selectedMealCategory };
+  meal.kcal = parseFloat(document.getElementById('input_kcal').value) || 0;
+  NUTRIENTS.forEach(k => { meal[k] = parseFloat(document.getElementById('input_'+k).value) || 0; });
+  ['ビタミン','ミネラル'].forEach(p => {
+    SUB_NUTRIENTS[p].forEach(s => { meal[s.key] = parseFloat(document.getElementById('input_'+s.key)?.value) || 0; });
+  });
+  if (meal.kcal === 0) {
+    meal.kcal = Math.round((meal['糖質']||0)*4 + (meal['脂質']||0)*9 + (meal['たんぱく質']||0)*4);
+  }
+  const meals = getMeals(selectedKey);
+  meals.push(meal);
+  setMeals(selectedKey, meals);
+  closeForm(); renderCalendar(); updateAll();
+}
+// ── Modal ──
+let _modalAction = null;
+
+function showModal({ icon, title, desc, confirmLabel, confirmColor, onConfirm }) {
+  document.getElementById('modalIcon').textContent = icon || '❓';
+  document.getElementById('modalTitle').textContent = title || '確認';
+  document.getElementById('modalDesc').textContent = desc || '';
+  const btn = document.getElementById('modalConfirmBtn');
+  btn.textContent = confirmLabel || '実行する';
+  btn.style.background = confirmColor || '#f87171';
+  _modalAction = onConfirm;
+  document.getElementById('confirmModal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('show');
+  _modalAction = null;
+}
+function modalConfirmAction() {
+  const action = _modalAction;
+  closeModal();
+  if (action) action();
+}
+// Close on overlay click
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function deleteMeal(id) {
+  showModal({
+    icon: '🗑️',
+    title: '食事を削除しますか？',
+    desc: 'この操作は元に戻せません。',
+    confirmLabel: '削除する',
+    confirmColor: '#f87171',
+    onConfirm: () => {
+      const meals = getMeals(selectedKey).filter(m => String(m.id) !== String(id));
+      setMeals(selectedKey, meals);
+      renderCalendar(); updateAll();
+    }
+  });
+}
+function resetDay() {
+  const sel = new Date(selectedKey + 'T00:00:00');
+  const label = selectedKey === todayKey ? '今日' : `${sel.getMonth()+1}月${sel.getDate()}日`;
+  showModal({
+    icon: '🔄',
+    title: `${label}の記録をリセット`,
+    desc: 'この日のすべての食事記録が削除されます。',
+    confirmLabel: 'リセットする',
+    confirmColor: '#f59e0b',
+    onConfirm: () => {
+      setMeals(selectedKey, []);
+      renderCalendar(); updateAll();
+    }
+  });
+}
+function exportData() {
+  const all = getAllDayData();
+  const data = { exportedAt: new Date().toISOString(), kcalGoal, goals, days: all, myList };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nutrition-all-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.days) { alert('形式が正しくありません。このアプリで書き出したJSONファイルを選んでください。'); return; }
+      if (!confirm(`データを読み込みます。\n既存のデータと統合されます（同じ日付は上書きされます）。\n続けますか？`)) return;
+
+      // Merge days
+      const existing = getAllDayData();
+      const merged = { ...existing, ...data.days };
+      localStorage.setItem('nr_days', JSON.stringify(merged));
+
+      // Restore goals if present
+      if (data.goals) {
+        goals = data.goals;
+        localStorage.setItem('nr_goals', JSON.stringify(goals));
+      }
+      if (data.kcalGoal) {
+        kcalGoal = data.kcalGoal;
+        localStorage.setItem('nr_kcal_goal', kcalGoal);
+      }
+      // Restore myList if present（既存と統合、名前重複は除外）
+      if (Array.isArray(data.myList)) {
+        const existingNames = new Set(myList.map(m => m.name));
+        data.myList.forEach(item => {
+          if (existingNames.has(item.name)) return;
+          myList.push({ ...item, id: Date.now() + Math.random() });
+          existingNames.add(item.name);
+        });
+        saveMyList();
+        renderMyList();
+      }
+
+      renderGoalFields();
+      renderCalendar();
+      updateAll();
+      alert('✅ データを読み込みました！');
+    } catch {
+      alert('読み込みに失敗しました。ファイルを確認してください。');
+    }
+    // Reset file input so same file can be re-imported
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ── Detail panel ──
+function toggleDetailPanel(nutrient) {
+  openDetailPanel = openDetailPanel === nutrient ? null : nutrient;
+  updateAll();
+  if (openDetailPanel) {
+    setTimeout(() => {
+      const panel = document.querySelector('.detail-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+}
+
+function buildDetailPanel(nutrient, meals) {
+  const color = COLORS[nutrient];
+  const unit = UNITS[nutrient];
+
+  // ビタミン・ミネラル → サブ栄養素の達成率パネル
+  if (SUB_NUTRIENTS[nutrient]) {
+    const subs = SUB_NUTRIENTS[nutrient];
+    const subTotals = {};
+    subs.forEach(s => { subTotals[s.key] = meals.reduce((sum, m) => sum + (m[s.key]||0), 0); });
+    const itemsHTML = subs.map(s => {
+      const pct = s.goal > 0 ? Math.min((subTotals[s.key] / s.goal) * 100, 100) : 0;
+      return `<div class="detail-sub-item">
+        <div class="detail-sub-name" style="color:${s.color}">${s.name}</div>
+        <div class="detail-sub-bar-track">
+          <div class="detail-sub-bar-fill" style="width:${pct}%;background:${s.color}"></div>
+        </div>
+        <div class="detail-sub-nums">
+          <span>${subTotals[s.key].toFixed(1)}${s.unit}</span>
+          <span>${pct.toFixed(0)}% / ${s.goal}${s.unit}</span>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="detail-panel">
+      <div class="detail-panel-header" style="background:${color}10;border-bottom:1px solid ${color}20">
+        <span class="detail-panel-title" style="color:${color}">📊 ${nutrient}の詳細</span>
+        <button class="detail-panel-close" onclick="event.stopPropagation();toggleDetailPanel('${nutrient}')">✕</button>
+      </div>
+      <div class="detail-sub-grid">${itemsHTML}</div>
+    </div>`;
+  }
+
+  // その他 → 食事ごとの摂取量内訳パネル
+  const mealsWithData = meals.filter(m => (m[nutrient]||0) > 0);
+  const total = meals.reduce((s,m) => s+(m[nutrient]||0), 0);
+  const maxVal = mealsWithData.length > 0 ? Math.max(...mealsWithData.map(m => m[nutrient]||0)) : 1;
+
+  let itemsHTML;
+  if (mealsWithData.length === 0) {
+    itemsHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px 0;color:#9ca3af;font-size:13px">記録がありません</div>`;
+  } else {
+    itemsHTML = mealsWithData.map(m => {
+      const val = m[nutrient] || 0;
+      const barPct = maxVal > 0 ? (val / maxVal) * 100 : 0;
+      const goalPct = goals[nutrient] > 0 ? Math.min((val / goals[nutrient]) * 100, 100) : 0;
+      return `<div class="detail-sub-item" style="grid-column:1/-1">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span class="detail-sub-name" style="color:${color};font-size:12px">${m.name}</span>
+          <span style="font-size:11px;color:#374151;font-weight:700">${val.toFixed(1)}${unit}
+            <span style="font-size:10px;color:#9ca3af;font-weight:400">(目標比 ${goalPct.toFixed(0)}%)</span>
+          </span>
+        </div>
+        <div class="detail-sub-bar-track">
+          <div class="detail-sub-bar-fill" style="width:${barPct}%;background:${color}"></div>
+        </div>
+        ${m.time ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px">${m.time}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  const goalPctTotal = goals[nutrient] > 0 ? Math.min((total / goals[nutrient]) * 100, 100) : 0;
+  return `<div class="detail-panel">
+    <div class="detail-panel-header" style="background:${color}10;border-bottom:1px solid ${color}20">
+      <span class="detail-panel-title" style="color:${color}">🍽️ ${nutrient}の内訳</span>
+      <button class="detail-panel-close" onclick="event.stopPropagation();toggleDetailPanel('${nutrient}')">✕</button>
+    </div>
+    <div style="padding:10px 16px 4px;display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-size:11px;color:#6b7280">合計</span>
+      <span style="font-size:18px;font-weight:800;color:${color}">${total.toFixed(1)}<span style="font-size:12px;font-weight:600;color:#9ca3af"> ${unit}</span></span>
+      <span style="font-size:11px;color:#6b7280">目標 ${goals[nutrient]}${unit} (${goalPctTotal.toFixed(0)}%)</span>
+    </div>
+    <div class="detail-sub-grid" style="grid-template-columns:1fr">${itemsHTML}</div>
+  </div>`;
+}
+
+// ── Update all ──
+function updateAll() {
+  const meals = getMeals(selectedKey);
+  const isToday = selectedKey === todayKey;
+
+  // Past notice
+  const notice = document.getElementById('pastNotice');
+  const addBtn = document.getElementById('openFormBtn');
+  if (isToday) {
+    notice.classList.add('hidden');
+    addBtn.style.display = '';
+    document.getElementById('calDayLabel').textContent = '🔥 本日のカロリー';
+    document.getElementById('headerDateLabel').textContent = '1日の栄養バランスを可視化';
+  } else {
+    const sel = new Date(selectedKey + 'T00:00:00');
+    const label = `${sel.getFullYear()}年${sel.getMonth()+1}月${sel.getDate()}日`;
+    notice.classList.remove('hidden');
+    document.getElementById('pastNoticeText').textContent = label;
+    document.getElementById('calDayLabel').textContent = `🔥 ${label}のカロリー`;
+    document.getElementById('headerDateLabel').textContent = `${sel.getMonth()+1}/${sel.getDate()} のデータ`;
+    addBtn.style.display = '';
+  }
+
+  const totals = {};
+  NUTRIENTS.forEach(k => { totals[k] = meals.reduce((s,m)=>s+(m[k]||0), 0); });
+  const totalKcal = meals.reduce((s,m)=>s+(m.kcal||0), 0);
+
+  // Calorie card
+  document.getElementById('calTotal').textContent = Math.round(totalKcal).toLocaleString();
+  const calPct = kcalGoal > 0 ? Math.min(totalKcal / kcalGoal, 1) : 0;
+  document.getElementById('calBarFill').style.width = (calPct * 100) + '%';
+  document.getElementById('calGoalText').textContent = `/ ${kcalGoal.toLocaleString()} kcal`;
+  document.getElementById('calPct').textContent = (calPct * 100).toFixed(0) + '%';
+  document.getElementById('calRing').style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - calPct);
+
+  renderSalt();
+
+  // Radar
+  const pcts = NUTRIENTS.map(k => goals[k]>0 ? Math.min((totals[k]/goals[k])*100,150) : 0);
+  const overall = pcts.reduce((s,v)=>s+Math.min(v,100),0) / pcts.length;
+  const sc = overall>=80 ? '#10b981' : overall>=50 ? '#f59e0b' : '#f87171';
+  document.getElementById('scoreValue').textContent = overall.toFixed(0);
+  document.getElementById('scoreValue').style.color = sc;
+  document.getElementById('scoreUnit').style.color = sc;
+
+  document.getElementById('miniBadges').innerHTML = NUTRIENTS.map((k,i) => `
+    <div class="mini-badge">
+      <div class="mini-badge-circle" style="background:${COLORS[k]}20;color:${COLORS[k]}">${pcts[i].toFixed(0)}%</div>
+      <p>${k}</p>
+    </div>`).join('');
+
+  radarChart.data.datasets[1].data = pcts;
+  radarChart.update();
+
+  // Build mini-bars — all expandable
+  const miniBarsEl = document.getElementById('miniBars');
+  let barsHTML = NUTRIENTS.map((k,i) => {
+    const p = Math.min(pcts[i], 100);
+    const isOpen = openDetailPanel === k;
+    return `<div class="mini-bar-card expandable${isOpen?' expanded':''}"
+      onclick="toggleDetailPanel('${k}')">
+      <div class="mini-bar-top">
+        <span class="mini-bar-name">${k}</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:10px;font-weight:700;color:${COLORS[k]}">${p.toFixed(0)}%</span>
+          <span class="mini-bar-chevron${isOpen?' open':''}">▾</span>
+        </div>
+      </div>
+      <div class="mini-bar-track">
+        <div class="mini-bar-fill" style="width:${p}%;background:${COLORS[k]}"></div>
+      </div>
+      <div class="mini-bar-sub">${totals[k].toFixed(1)} / ${goals[k]}${UNITS[k]}</div>
+    </div>`;
+  });
+
+  // Inject detail panel after the tapped card
+  const openIdx = NUTRIENTS.indexOf(openDetailPanel);
+  if (openIdx !== -1) {
+    // Insert after the row that contains the tapped card
+    // Grid is 3 cols, so insert after the row end: ceil((openIdx+1)/3)*3
+    const insertAt = Math.min(Math.ceil((openIdx + 1) / 3) * 3, NUTRIENTS.length);
+    barsHTML.splice(insertAt, 0, buildDetailPanel(openDetailPanel, meals));
+  }
+  miniBarsEl.innerHTML = barsHTML.join('');
+
+  // Meal list
+  const list = document.getElementById('mealList');
+  list.querySelectorAll('.meal-item').forEach(e => e.remove());
+  if (meals.length === 0) {
+    document.getElementById('mealEmpty').classList.remove('hidden');
+  } else {
+    document.getElementById('mealEmpty').classList.add('hidden');
+    [...meals].reverse().forEach(meal => {
+      const div = document.createElement('div');
+      div.className = 'meal-item';
+      if (meal.color) div.style.borderLeft = `3px solid ${meal.color}`;
+      const detail = NUTRIENTS.map(k => meal[k] ? `${k} ${meal[k]}${UNITS[k]}` : null).filter(Boolean).join(' · ');
+      const alreadySaved = myList.some(m => m.name === meal.name);
+      div.innerHTML = `
+        <span class="color-dot" style="background:${meal.color||'#e5e7eb'}"></span>
+        <div class="meal-info" onclick="editMeal('${meal.id}')" style="cursor:pointer">
+          <div class="meal-name">
+            ${meal.name}
+            ${meal.kcal ? `<span class="meal-kcal">${Math.round(meal.kcal)} kcal</span>` : ''}
+
+          </div>
+          <div class="meal-detail">${detail || '栄養素未入力'}</div>
+        </div>
+        <button class="delete-btn" style="background:${alreadySaved?'#fef9c3':'#f0fdf4'};margin-right:2px" title="${alreadySaved?'マイリスト登録済み':'マイリストに保存'}" onclick="saveItemToMyList('${meal.id}', this)">
+          ${alreadySaved ? '⭐' : '☆'}
+        </button>
+        <button class="delete-btn" onclick="deleteMeal('${meal.id}')">🗑️</button>`;
+      list.appendChild(div);
+    });
+  }
+}
+
+// ── MyList ──
+let myList = JSON.parse(localStorage.getItem('nr_mylist') || '[]');
+
+function saveMyList() {
+  localStorage.setItem('nr_mylist', JSON.stringify(myList));
+}
+
+function exportMyList() {
+  if (myList.length === 0) { alert('マイリストが空です。'); return; }
+  const data = { exportedAt: new Date().toISOString(), type: 'nutrition-radar-mylist', myList };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mylist-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importMyList(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const incoming = Array.isArray(data.myList) ? data.myList : (Array.isArray(data) ? data : null);
+      if (!incoming) { alert('形式が正しくありません。マイリストのJSONファイルを選んでください。'); return; }
+      if (!confirm(`マイリストを読み込みます（${incoming.length}件）。\n既存のマイリストに追加されます。\n続けますか？`)) return;
+
+      // 名前が重複しないものだけ追加（IDは新規採番）
+      const existingNames = new Set(myList.map(m => m.name));
+      let addedCount = 0;
+      incoming.forEach(item => {
+        if (existingNames.has(item.name)) return;
+        myList.push({ ...item, id: Date.now() + Math.random() });
+        existingNames.add(item.name);
+        addedCount++;
+      });
+      saveMyList();
+      renderMyList();
+      alert(`✅ ${addedCount}件のメニューを追加しました！`);
+    } catch {
+      alert('読み込みに失敗しました。ファイルを確認してください。');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+async function shareMyList() {
+  if (myList.length === 0) { alert('マイリストが空です。'); return; }
+  const data = { exportedAt: new Date().toISOString(), type: 'nutrition-radar-mylist', myList };
+  const json = JSON.stringify(data, null, 2);
+  const file = new File([json], `mylist-${new Date().toISOString().slice(0,10)}.json`, { type: 'application/json' });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'マイリスト（栄養レーダー）',
+        text: `マイリスト ${myList.length}件を共有します`
+      });
+      return;
+    } catch (err) {
+      // ユーザーがキャンセルした場合などはフォールバックしない
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  // Web Share非対応の場合はファイルダウンロードにフォールバック
+  exportMyList();
+  alert('この端末では直接共有できないため、ファイルをダウンロードしました。LINEやメールに添付して送ってください。');
+}
+
+function saveItemToMyList(mealId, btn) {
+  const meals = getMeals(selectedKey);
+  const meal = meals.find(m => String(m.id) === String(mealId));
+  if (!meal) return;
+
+  const alreadySaved = myList.some(m => m.name === meal.name);
+  if (alreadySaved) {
+    showModal({
+      icon: '⭐', title: '上書き保存しますか？',
+      desc: `「${meal.name}」はすでにマイリストにあります。今回の内容で上書きしますか？`,
+      confirmLabel: '上書きする', confirmColor: '#f59e0b',
+      onConfirm: () => {
+        const item = { ...meal, id: myList.find(m => m.name === meal.name).id };
+        myList = myList.filter(m => m.name !== meal.name);
+        myList.push(item);
+        saveMyList(); renderMyList();
+updateAll();
+        showToast('⭐ マイリストを更新しました');
+      }
+    });
+    return;
+  }
+
+  const item = { ...meal };
+  myList.push(item);
+  saveMyList(); renderMyList(); updateAll();
+  showToast('⭐ マイリストに保存しました');
+}
+
+function saveToMyList() {
+  const name = document.getElementById('mealName').value.trim();
+  if (!name) { document.getElementById('mealName').focus(); return; }
+  const item = { id: Date.now(), name };
+  item.kcal = parseFloat(document.getElementById('input_kcal').value) || 0;
+  NUTRIENTS.forEach(k => { item[k] = parseFloat(document.getElementById('input_'+k)?.value) || 0; });
+  ['ビタミン','ミネラル'].forEach(p => {
+    SUB_NUTRIENTS[p].forEach(s => { item[s.key] = parseFloat(document.getElementById('input_'+s.key)?.value) || 0; });
+  });
+  if (item.kcal === 0) {
+    item.kcal = Math.round((item['糖質']||0)*4 + (item['脂質']||0)*9 + (item['たんぱく質']||0)*4);
+  }
+  // Check duplicate name
+  if (myList.find(m => m.name === name)) {
+    showModal({
+      icon: '⚠️', title: '同じ名前が既にあります',
+      desc: `「${name}」はすでにマイリストに登録されています。上書きしますか？`,
+      confirmLabel: '上書きする', confirmColor: '#f59e0b',
+      onConfirm: () => {
+        myList = myList.filter(m => m.name !== name);
+        myList.push(item);
+        saveMyList(); renderMyList();
+        showToast('⭐ マイリストを更新しました');
+      }
+    });
+    return;
+  }
+  myList.push(item);
+  saveMyList(); renderMyList();
+  showToast('⭐ マイリストに保存しました');
+}
+
+function addFromMyList(id, btn) {
+  const item = myList.find(m => String(m.id) === String(id));
+  if (!item) return;
+  const meal = { ...item, id: Date.now(), time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) };
+  const meals = getMeals(selectedKey);
+  meals.push(meal);
+  setMeals(selectedKey, meals);
+  // 使用回数カウント
+  item.useCount = (item.useCount || 0) + 1;
+  saveMyList();
+  renderCalendar(); updateAll();
+  showToast('✅ ' + item.name + ' を追加しました');
+
+  // 視覚フィードバック
+  if (btn) {
+    const original = btn.textContent;
+    const originalBg = btn.style.background || '';
+    btn.textContent = '✓ 追加済み';
+    btn.style.background = 'linear-gradient(135deg,#6ee7b7,#34d399)';
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.style.background = originalBg;
+      btn.disabled = false;
+    }, 1500);
+  }
+}
+
+function deleteFromMyList(id) {
+  showModal({
+    icon: '⭐', title: 'マイリストから削除',
+    desc: 'このメニューをマイリストから削除しますか？',
+    confirmLabel: '削除する', confirmColor: '#f87171',
+    onConfirm: () => {
+      myList = myList.filter(m => String(m.id) !== String(id));
+      saveMyList(); renderMyList();
+    }
+  });
+}
+
+let _dragSrcId = null;
+
+// ── Daily Template ──
+let dailyTemplate = JSON.parse(localStorage.getItem('nr_template') || 'null'); // array of meals or null
+function toggleMyListDataMenu() {
+  const menu = document.getElementById('myListDataMenu');
+  const chevron = document.getElementById('myListDataChevron');
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'flex';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function toggleTemplateCard() {
+  const body = document.getElementById('templateCardCollapsible');
+  const chevron = document.getElementById('templateCardChevron');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function saveCurrentDayAsTemplate() {
+  const meals = getMeals(selectedKey);
+  if (meals.length === 0) {
+    showToast('⚠️ この日の食事記録がありません');
+    return;
+  }
+  dailyTemplate = meals.map(m => ({...m}));
+  localStorage.setItem('nr_template', JSON.stringify(dailyTemplate));
+  renderTemplateList();
+  showToast(`📋 ${meals.length}件をテンプレートに保存しました`);
+}
+
+function clearTemplate() {
+  dailyTemplate = null;
+  localStorage.removeItem('nr_template');
+  renderTemplateList();
+  showToast('🗑️ テンプレートをクリアしました');
+}
+
+function renderTemplateList() {
+  const el = document.getElementById('templateMealList');
+  if (!el) return;
+
+  if (!dailyTemplate || dailyTemplate.length === 0) {
+    el.innerHTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0">テンプレート未設定</p>';
+    return;
+  }
+  el.innerHTML = dailyTemplate.map(m => {
+    const kcalText = m.kcal ? `${Math.round(m.kcal)} kcal` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+      <span style="font-size:16px">🍽️</span>
+      <span style="font-size:13px;font-weight:700;color:#111827;flex:1">${m.name}</span>
+      ${kcalText ? `<span style="font-size:11px;background:#fef3c7;color:#92400e;border-radius:5px;padding:1px 6px;font-weight:700">${kcalText}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// 自動追加機能は廃止済み（テンプレートの保存/クリアのみ利用可能）
+function autoAddMeals(key) {
+  // no-op
+}
+
+const MYLIST_CATEGORIES = ['朝食','昼食','夕食','間食','その他'];
+const CAT_ICONS = { '朝食':'🌅', '昼食':'☀️', '夕食':'🌙', '間食':'🍪', 'その他':'🍽️' };
+function renderMyList() {
+  const query = (document.getElementById('myListSearch') || {}).value || '';
+  renderMyListFiltered(query);
+}
+
+function renderMyListFiltered(query) {
+  const container = document.getElementById('myListItems');
+  if (!container) return;
+
+  // カウント表示
+  const countEl = document.getElementById('myListCount');
+  if (countEl) countEl.textContent = myList.length ? myList.length + '件' : '';
+
+  // 検索クリアボタン表示切替
+  const clearBtn = document.getElementById('myListSearchClear');
+  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+  if (myList.length === 0) {
+    container.innerHTML = `<div class="mylist-empty" id="myListEmpty">
+      <div style="font-size:36px;margin-bottom:8px">⭐</div>
+      <p style="font-size:14px">まだメニューが登録されていません</p>
+      <p style="font-size:12px;margin-top:4px">食事記録フォームから保存できます</p>
+    </div>`;
+    return;
+  }
+
+  const q = query.trim().toLowerCase();
+  let filtered = q ? myList.filter(m => m.name.toLowerCase().includes(q)) : [...myList];
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="mylist-empty">
+      <div style="font-size:32px;margin-bottom:8px">🔍</div>
+      <p style="font-size:14px;color:#374151">「${query}」に一致するメニューなし</p>
+      <p style="font-size:12px;margin-top:4px">別のキーワードで検索してください</p>
+    </div>`;
+    return;
+  }
+
+  function itemHtml(item) {
+    const meta = [
+      item.kcal ? item.kcal + ' kcal' : null,
+      ...NUTRIENTS.map(k => item[k] ? k+' '+item[k]+UNITS[k] : null)
+    ].filter(Boolean).join('  ·  ');
+    const nameHtml = q
+      ? item.name.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'),
+          '<mark style="background:#fef9c3;border-radius:2px;padding:0 1px">$1</mark>')
+      : item.name;
+    const useLabel = item.useCount ? `<span class="mylist-usage">×${item.useCount}</span>` : '';
+    return `<div class="mylist-item" draggable="true" data-id="${item.id}"
+        ondragstart="onDragStart(event)"
+        ondragover="onDragOver(event)"
+        ondragleave="onDragLeave(event)"
+        ondrop="onDrop(event)"
+        ondragend="onDragEnd(event)">
+      <div class="drag-handle" title="ドラッグして並び替え">⠿</div>
+      <div class="mylist-icon">⭐</div>
+      <div class="mylist-info">
+        <div class="mylist-name" style="font-size:${myListFontSize}px">${nameHtml}${useLabel}</div>
+        <div class="mylist-meta">${meta || '栄養素未登録'}</div>
+      </div>
+      <button class="mylist-add-btn" onclick="addFromMyList('${item.id}', this)">＋ 追加</button>
+      <button class="mylist-del-btn" onclick="deleteFromMyList('${item.id}')">🗑️</button>
+    </div>`;
+  }
+
+  container.innerHTML = filtered.map(itemHtml).join('');
+  if (!q) initTouchSort(container);
+}
+
+// ── MyList font size ──
+let myListFontSize = Math.max(10, parseInt(localStorage.getItem('nr_mylist_fs') || '14'));
+
+function setMyListFontSize(px) {
+  myListFontSize = px;
+  localStorage.setItem('nr_mylist_fs', px);
+  const slider = document.getElementById('myListFsSilder');
+  const label  = document.getElementById('myListFsLabel');
+  if (slider) slider.value = px;
+  if (label)  label.textContent = px + 'px';
+  renderMyList();
+}
+
+function initMyListFontSizeBtns() {
+  setMyListFontSize(myListFontSize);
+}
+
+function filterMyList(query) {
+  renderMyListFiltered(query);
+}
+
+function clearMyListSearch() {
+  const input = document.getElementById('myListSearch');
+  if (input) { input.value = ''; input.focus(); }
+  renderMyListFiltered('');
+}
+
+// ── Drag & Drop ──
+function onDragStart(e) {
+  _dragSrcId = e.currentTarget.dataset.id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const el = e.currentTarget;
+  if (el.dataset.id !== _dragSrcId) el.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const targetId = e.currentTarget.dataset.id;
+  e.currentTarget.classList.remove('drag-over');
+  if (!_dragSrcId || _dragSrcId === targetId) return;
+  const srcIdx = myList.findIndex(m => String(m.id) === String(_dragSrcId));
+  const tgtIdx = myList.findIndex(m => String(m.id) === String(targetId));
+  if (srcIdx === -1 || tgtIdx === -1) return;
+  const moved = myList.splice(srcIdx, 1)[0];
+  myList.splice(tgtIdx, 0, moved);
+  saveMyList();
+  renderMyList();
+}
+function onDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.mylist-item').forEach(el => el.classList.remove('drag-over'));
+  _dragSrcId = null;
+}
+
+// ── Touch sort ──
+function initTouchSort(container) {
+  let touchSrcEl = null, touchSrcId = null, clone = null, startY = 0;
+
+  container.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('touchstart', e => {
+      touchSrcEl = handle.closest('.mylist-item');
+      touchSrcId = touchSrcEl.dataset.id;
+      startY = e.touches[0].clientY;
+      touchSrcEl.classList.add('dragging');
+      // Create visual clone
+      clone = touchSrcEl.cloneNode(true);
+      clone.style.cssText = `position:fixed;left:${touchSrcEl.getBoundingClientRect().left}px;top:${touchSrcEl.getBoundingClientRect().top}px;width:${touchSrcEl.offsetWidth}px;opacity:0.85;z-index:999;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,0.18);border-radius:16px;`;
+      document.body.appendChild(clone);
+      e.preventDefault();
+    }, { passive: false });
+
+    handle.addEventListener('touchmove', e => {
+      if (!clone) return;
+      const dy = e.touches[0].clientY - startY;
+      const rect = touchSrcEl.getBoundingClientRect();
+      clone.style.top = (rect.top + dy) + 'px';
+      // Highlight target
+      const touch = e.touches[0];
+      document.querySelectorAll('.mylist-item').forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (touch.clientY >= r.top && touch.clientY <= r.bottom && el !== touchSrcEl) {
+          el.classList.add('drag-over');
+        } else {
+          el.classList.remove('drag-over');
+        }
+      });
+      e.preventDefault();
+    }, { passive: false });
+
+    handle.addEventListener('touchend', e => {
+      if (!clone) return;
+      clone.remove(); clone = null;
+      const overEl = document.querySelector('.mylist-item.drag-over');
+      if (overEl) {
+        const targetId = overEl.dataset.id;
+        overEl.classList.remove('drag-over');
+        const srcIdx = myList.findIndex(m => String(m.id) === String(touchSrcId));
+        const tgtIdx = myList.findIndex(m => String(m.id) === String(targetId));
+        if (srcIdx !== -1 && tgtIdx !== -1 && srcIdx !== tgtIdx) {
+          const moved = myList.splice(srcIdx, 1)[0];
+          myList.splice(tgtIdx, 0, moved);
+          saveMyList();
+        }
+      }
+      if (touchSrcEl) touchSrcEl.classList.remove('dragging');
+      touchSrcEl = null; touchSrcId = null;
+      renderMyList();
+    });
+  });
+}
+
+// ── Toast ──
+function showToast(msg) {
+  let toast = document.getElementById('appToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'appToast';
+    toast.style.cssText = 'display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#065f46;color:#fff;border-radius:20px;padding:10px 20px;font-size:13px;font-weight:700;z-index:300;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.2);';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+function printReport() {
+  // Set print title
+  const sel = new Date(selectedKey + 'T00:00:00');
+  const label = selectedKey === todayKey
+    ? `今日（${sel.getFullYear()}年${sel.getMonth()+1}月${sel.getDate()}日）`
+    : `${sel.getFullYear()}年${sel.getMonth()+1}月${sel.getDate()}日`;
+
+  // Build print-only header
+  let printHeader = document.getElementById('printHeader');
+  if (!printHeader) {
+    printHeader = document.createElement('div');
+    printHeader.id = 'printHeader';
+    printHeader.className = 'print-header';
+    printHeader.style.cssText = 'display:none';
+    document.querySelector('.container').prepend(printHeader);
+  }
+  const meals = getMeals(selectedKey);
+  const totals = {};
+  NUTRIENTS.forEach(k => { totals[k] = meals.reduce((s,m)=>s+(m[k]||0),0); });
+  const totalKcal = meals.reduce((s,m)=>s+(m.kcal||0),0);
+  const pcts = NUTRIENTS.map(k => goals[k]>0 ? Math.min((totals[k]/goals[k])*100,100):0);
+  const overall = pcts.reduce((s,v)=>s+v,0)/pcts.length;
+
+  printHeader.innerHTML = '';
+
+  // Add print footer
+  let printFooter = document.getElementById('printFooter');
+  if (!printFooter) {
+    printFooter = document.createElement('div');
+    printFooter.id = 'printFooter';
+    printFooter.className = 'print-footer';
+    printFooter.style.cssText = 'display:none;margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#9ca3af';
+    document.querySelector('.container').appendChild(printFooter);
+  }
+  // 2ページ目：食事一覧（カテゴリ別グループ表示）
+  const CATS = ['朝食','昼食','夕食','その他'];
+  const CAT_ICON = { '朝食':'🌅', '昼食':'☀️', '夕食':'🌙', 'その他':'🍽️' };
+  let mealRows;
+  if (meals.length === 0) {
+    mealRows = '<p style="color:#9ca3af;font-size:13px">記録なし</p>';
+  } else {
+    const grouped = {};
+    CATS.forEach(c => grouped[c] = []);
+    meals.forEach(m => grouped[guessMealCategory(m)].push(m));
+
+    mealRows = CATS.map(cat => {
+      const items = grouped[cat];
+      if (items.length === 0) return '';
+      const rows = items.map(m => {
+        const detail = [
+          m.kcal ? `${Math.round(m.kcal)} kcal` : null,
+          ...NUTRIENTS.map(k => m[k] ? `${k} ${m[k]}${UNITS[k]}` : null)
+        ].filter(Boolean).join('　');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6">
+          <span style="font-size:14px;font-weight:700;color:#111827;width:140px;flex-shrink:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</span>
+          <span style="font-size:11px;color:#6b7280;text-align:left;flex:1">${detail}</span>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:800;color:#059669;background:#ecfdf5;padding:5px 10px;border-radius:6px;margin-bottom:4px;display:inline-block">
+          ${CAT_ICON[cat]} ${cat} <span style="color:#9ca3af;font-weight:600">${items.length}件</span>
+        </div>
+        ${rows}
+      </div>`;
+    }).join('');
+  }
+
+  printFooter.innerHTML = `
+    <div style="page-break-before:always;padding-top:20px">
+      <h2 style="font-size:16px;font-weight:800;color:#065f46;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #d1fae5">
+        🍽️ 食事一覧
+      </h2>
+      ${mealRows}
+      <div style="margin-top:16px;padding-top:10px;border-top:1px solid #e5e7eb;text-align:center;font-size:11px;color:#9ca3af">
+        印刷日時: ${new Date().toLocaleString('ja-JP')} ／ 栄養レーダー
+      </div>
+    </div>`;
+
+  // 印刷専用SVGレーダーを生成
+  (function() {
+    const pcts = radarChart.data.datasets[1].data;
+    const labels = radarChart.data.labels;
+    const N = labels.length;
+    const cx = 165, cy = 144, R = 98, labelR = 107;
+    const angleOf = i => (Math.PI * 2 * i / N) - Math.PI / 2;
+    const pt = (r, i) => {
+      const a = angleOf(i);
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    };
+    // グリッド
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="456" height="300">`;
+    [20,40,60,80,100].forEach(pct => {
+      const r = R * pct / 120;
+      const pts = labels.map((_,i) => pt(r,i).join(',')).join(' ');
+      svg += `<polygon points="${pts}" fill="none" stroke="#d1fae5" stroke-width="1"/>`;
+    });
+    // 軸線
+    labels.forEach((_,i) => {
+      const [x,y] = pt(R, i);
+      svg += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#d1fae5" stroke-width="1"/>`;
+    });
+    // データ
+    const dpts = pcts.map((v,i) => pt(R * Math.min(v,120) / 120, i).join(',')).join(' ');
+    svg += `<polygon points="${dpts}" fill="rgba(16,185,129,0.18)" stroke="#10b981" stroke-width="2.5"/>`;
+    // 点
+    pcts.forEach((v,i) => {
+      const [x,y] = pt(R * Math.min(v,120) / 120, i);
+      svg += `<circle cx="${x}" cy="${y}" r="5" fill="#10b981" stroke="#fff" stroke-width="2"/>`;
+    });
+    // ラベル
+    labels.forEach((label,i) => {
+      const [x,y] = pt(labelR, i);
+      const anchor = x < cx - 5 ? 'end' : x > cx + 5 ? 'start' : 'middle';
+      svg += `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" font-size="16" font-weight="700" fill="#9ca3af" font-family="sans-serif">${label}</text>`;
+    });
+    svg += '</svg>';
+    document.getElementById('printRadar').innerHTML = svg;
+  })();
+
+  window.print();
+}
+
+
+
+// ── Day Summary Popover ──
+let _popoverTapTimer = null;
+let _popoverLongPressed = false;
+
+function handleCalDayClick(e, key) {
+  if (_popoverLongPressed) { _popoverLongPressed = false; return; }
+  // 既に選択済みの日 → サマリー表示、それ以外 → 日付切替
+  if (key === selectedKey) {
+    showDaySummary(e, key);
+  } else {
+    selectDate(key);
+  }
+}
+
+function showDaySummary(e, key) {
+  e.stopPropagation();
+  const meals = getMeals(key);
+  const totalKcal = meals.reduce((s,m) => s+(m.kcal||0), 0);
+  const pct = kcalGoal > 0 ? Math.min((totalKcal/kcalGoal)*100,100) : 0;
+  const isOver = kcalGoal > 0 && totalKcal > kcalGoal;
+
+  const dt = new Date(key + 'T00:00:00');
+  const label = `${dt.getMonth()+1}月${dt.getDate()}日（${'日月火水木金土'[dt.getDay()]}）`;
+
+  document.getElementById('popDate').textContent = label;
+  document.getElementById('popKcal').textContent = Math.round(totalKcal).toLocaleString();
+  document.getElementById('popKcalGoal').textContent = kcalGoal ? `/ ${kcalGoal} kcal` : '';
+  const bar = document.getElementById('popBar');
+  bar.style.width = pct + '%';
+  bar.style.background = isOver
+    ? 'linear-gradient(90deg,#f87171,#ef4444)'
+    : 'linear-gradient(90deg,#34d399,#059669)';
+
+  const mealsEl = document.getElementById('popMeals');
+  if (meals.length === 0) {
+    mealsEl.innerHTML = '<div class="pop-empty">記録なし</div>';
+  } else {
+    mealsEl.innerHTML = meals.map(m =>
+      `<div class="pop-meal-row">
+        <span class="pop-meal-name">${m.name}</span>
+        <span class="pop-meal-kcal">${m.kcal ? Math.round(m.kcal)+' kcal' : ''}</span>
+      </div>`
+    ).join('');
+  }
+
+  // 位置決め
+  const pop = document.getElementById('daySummaryPopover');
+  pop.style.display = 'block';
+  document.getElementById('popoverBackdrop').style.display = 'block';
+
+  const rect = e.currentTarget ? e.currentTarget.getBoundingClientRect() : { left: e.clientX, top: e.clientY, width:0, height:0 };
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = rect.left + rect.width/2 - 110;
+  let top  = rect.bottom + 8;
+  left = Math.max(10, Math.min(left, vw - 288));
+  if (top + 260 > vh) top = rect.top - 260;
+  pop.style.left = left + 'px';
+  pop.style.top  = top + 'px';
+}
+
+function closeDaySummary() {
+  document.getElementById('daySummaryPopover').style.display = 'none';
+  document.getElementById('popoverBackdrop').style.display = 'none';
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'mylist') { renderMyList(); renderTemplateList(); }
+}
+
+// ── PWA ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('show');
+});
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('installBanner').classList.remove('show');
+});
+document.getElementById('installClose').addEventListener('click', () => {
+  document.getElementById('installBanner').classList.remove('show');
+});
+
+function updateNetworkStatus() {
+  const online = navigator.onLine;
+  document.getElementById('statusDot').className = 'status-dot'+(online?'':' offline');
+  document.getElementById('statusLabel').textContent = online ? 'オンライン' : 'オフライン';
+  if (!online) {
+    const t = document.getElementById('offlineToast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+}
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+
+// ── Init ──
+renderGoalFields();
+renderNutrientInputs();
+renderCalendar();
+updateAll();
+updateNetworkStatus();
+renderMyList();
+renderTemplateList();
+initMyListFontSizeBtns();
+renderWater();
+renderSalt();
+autoAddMeals(todayKey);
+updateAll();
+</script>
+</body>
+</html>
