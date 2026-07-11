@@ -1,6 +1,6 @@
 {
   "name": "Nutrition Radar",
-  "short_name": "栄養管理",
+  "short_name": "栄養レーダー",
   "description": "1日の栄養バランスを可視化するアプリ",
   "start_url": "./index.html",
   "scope": "./",
