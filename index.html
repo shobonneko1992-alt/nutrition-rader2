@@ -153,7 +153,7 @@ header p { color: #6ee7b7; font-size: 12px; }
 .score-row { display: flex; align-items: baseline; gap: 4px; margin-top: 4px; }
 .score-value { font-size: 40px; font-weight: 800; line-height: 1; transition: color 0.4s; }
 .score-unit { font-size: 18px; font-weight: 600; transition: color 0.4s; }
-.chart-wrap { padding: 10px 20px; height: 270px; }
+.chart-wrap { padding: 10px 20px; height: 270px; position: relative; }
 .mini-badges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 8px; }
 .mini-badge { text-align: center; }
 .mini-badge-circle { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 3px; font-size: 9px; font-weight: 700; }
@@ -1079,6 +1079,9 @@ const radarChart = new Chart(document.getElementById('radarChart').getContext('2
     ]
   },
   options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    resizeDelay: 0,
     animation: { duration: 600 },
     scales: { r: { min:0, max:120, ticks:{display:false}, grid:{color:'#d1fae5'}, angleLines:{color:'#d1fae5'},
         pointLabels:{
