@@ -160,12 +160,12 @@ header p { color: #6ee7b7; font-size: 12px; }
 .mini-badge p { font-size: 9px; color: #9ca3af; white-space: nowrap; }
 
 .mini-bars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
-.mini-bar-card { background: #fff; border-radius: 16px; padding: 12px 14px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.04); cursor: default; }
+.mini-bar-card { background: #fff; border-radius: 16px; padding: 12px 10px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.04); cursor: default; }
 .mini-bar-card.expandable { cursor: pointer; transition: border-color 0.2s, background 0.15s; }
 .mini-bar-card.expandable:active { background: #f9fafb; }
 .mini-bar-card.expanded { border-color: #10b981; }
-.mini-bar-top { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
-.mini-bar-name { font-size: 11px; font-weight: 700; color: #374151; }
+.mini-bar-top { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; flex-wrap: wrap; row-gap: 2px; }
+.mini-bar-name { font-size: 10.5px; font-weight: 700; color: #374151; white-space: nowrap; }
 .mini-bar-track { background: #f3f4f6; border-radius: 99px; height: 5px; overflow: hidden; }
 .mini-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
 .mini-bar-sub { font-size: 10px; color: #9ca3af; margin-top: 4px; }
@@ -193,15 +193,15 @@ header p { color: #6ee7b7; font-size: 12px; }
 .mylist-item:hover { background: #f0fdf4; }
 .mylist-item.dragging { opacity: 0.4; box-shadow: none; }
 .mylist-item.drag-over { border-color: #10b981; background: #f0fdf4; box-shadow: 0 0 0 2px #10b98140; }
-.drag-handle { cursor: grab; color: #d1d5db; font-size: 16px; flex-shrink: 0; padding: 2px 2px; touch-action: none; user-select: none; }
+.drag-handle { cursor: grab; color: #d1d5db; font-size: 12px; flex-shrink: 0; padding: 2px 2px; touch-action: none; user-select: none; }
 .drag-handle:active { cursor: grabbing; }
-.mylist-icon { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; background: #ecfdf5; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.mylist-icon { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; background: #ecfdf5; display: flex; align-items: center; justify-content: center; font-size: 13px; }
 .mylist-info { flex: 1; min-width: 0; }
-.mylist-name { font-size: 14px; font-weight: 700; color: #111827; }
+.mylist-name { font-size: 14px; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mylist-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mylist-add-btn { background: linear-gradient(135deg,#059669,#10b981); border: none; border-radius: 10px; padding: 7px 13px; cursor: pointer; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.mylist-add-btn { background: linear-gradient(135deg,#059669,#10b981); border: none; border-radius: 8px; padding: 5px 10px; cursor: pointer; color: #fff; font-size: 9px; font-weight: 700; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
 .mylist-add-btn:active { transform: scale(0.95); }
-.mylist-del-btn { background: #fff0f0; border: none; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 14px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.mylist-del-btn { background: #fff0f0; border: none; border-radius: 6px; width: 24px; height: 24px; cursor: pointer; font-size: 10.5px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
 .mylist-del-btn:active { background: #fee2e2; }
 
 .mylist-empty { text-align: center; padding: 32px 0; color: #9ca3af; }
@@ -345,6 +345,17 @@ input { font-family: inherit; }
   color: #059669; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .gram-quick-btn:active { background: #d1fae5; }
+
+/* ── MyList Preview Modal ── */
+.mylist-preview-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: 10px; background: #f9fafb; font-size: 13px;
+}
+.mylist-preview-row .label { color: #6b7280; font-weight: 600; }
+.mylist-preview-row .value { color: #111827; font-weight: 700; }
+.mylist-preview-kcal {
+  text-align: center; font-size: 24px; font-weight: 800; color: #059669; margin-bottom: 2px;
+}
 
 /* ── Salt Bar ── */
 .salt-bar-wrap {
@@ -784,6 +795,20 @@ input { font-family: inherit; }
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeGramModal()">キャンセル</button>
       <button class="modal-confirm" id="gramModalConfirmBtn" style="background:#059669" onclick="confirmGramModal()">反映する</button>
+    </div>
+  </div>
+</div>
+
+<!-- MyList Preview Modal -->
+<div class="modal-overlay" id="myListPreviewModal">
+  <div class="modal-box" style="max-width:340px">
+    <div class="gram-modal-body" style="padding:22px 22px 6px">
+      <div class="gram-modal-food" id="myListPreviewName" style="word-break:break-word"></div>
+      <div id="myListPreviewNutrients" style="margin-top:14px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeMyListPreview()">キャンセル</button>
+      <button class="modal-confirm" id="myListPreviewAddBtn" style="background:#059669" onclick="confirmMyListPreviewAdd()">＋ 追加する</button>
     </div>
   </div>
 </div>
@@ -2581,6 +2606,44 @@ function saveToMyList() {
   showToast('⭐ マイリストに保存しました');
 }
 
+// ── MyList Preview (タップ → 栄養素確認 → 追加) ──
+let _myListPreviewId = null;
+
+function openMyListPreview(id) {
+  const item = myList.find(m => String(m.id) === String(id));
+  if (!item) return;
+  _myListPreviewId = id;
+
+  document.getElementById('myListPreviewName').textContent = item.name;
+
+  const rows = [];
+  rows.push(`<div class="mylist-preview-kcal">${item.kcal || 0} <span style="font-size:14px;color:#6b7280">kcal</span></div>`);
+  NUTRIENTS.forEach(k => {
+    if (item[k]) rows.push(`<div class="mylist-preview-row"><span class="label">${k}</span><span class="value">${item[k]}${UNITS[k] || ''}</span></div>`);
+  });
+  if (rows.length === 1) {
+    rows.push(`<div class="mylist-preview-row"><span class="label" style="color:#9ca3af">栄養素データなし</span></div>`);
+  }
+  document.getElementById('myListPreviewNutrients').innerHTML = rows.join('');
+
+  document.getElementById('myListPreviewModal').classList.add('show');
+}
+
+function closeMyListPreview() {
+  document.getElementById('myListPreviewModal').classList.remove('show');
+  _myListPreviewId = null;
+}
+
+function confirmMyListPreviewAdd() {
+  if (_myListPreviewId == null) return;
+  addFromMyList(_myListPreviewId);
+  closeMyListPreview();
+}
+
+document.getElementById('myListPreviewModal').addEventListener('click', function (e) {
+  if (e.target === this) closeMyListPreview();
+});
+
 function addFromMyList(id, btn) {
   const item = myList.find(m => String(m.id) === String(id));
   if (!item) return;
@@ -2741,11 +2804,11 @@ function renderMyListFiltered(query) {
         ondragend="onDragEnd(event)">
       <div class="drag-handle" title="ドラッグして並び替え">⠿</div>
       <div class="mylist-icon">⭐</div>
-      <div class="mylist-info">
+      <div class="mylist-info" onclick="openMyListPreview('${item.id}')" style="cursor:pointer">
         <div class="mylist-name" style="font-size:${myListFontSize}px">${nameHtml}${useLabel}</div>
         <div class="mylist-meta">${meta || '栄養素未登録'}</div>
       </div>
-      <button class="mylist-add-btn" onclick="addFromMyList('${item.id}', this)">＋ 追加</button>
+      <button class="mylist-add-btn" onclick="openMyListPreview('${item.id}')">＋ 追加</button>
       <button class="mylist-del-btn" onclick="deleteFromMyList('${item.id}')">🗑️</button>
     </div>`;
   }
