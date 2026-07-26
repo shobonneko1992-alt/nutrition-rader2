@@ -357,6 +357,24 @@ input { font-family: inherit; }
   text-align: center; font-size: 24px; font-weight: 800; color: #059669; margin-bottom: 2px;
 }
 
+/* ── Template Builder Modal ── */
+.tpl-builder-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tpl-builder-row.checked { border-color: #10b981; background: #f0fdf4; }
+.tpl-builder-checkbox {
+  width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #d1d5db;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #fff; background: #fff;
+}
+.tpl-builder-row.checked .tpl-builder-checkbox { background: #10b981; border-color: #10b981; }
+.tpl-builder-info { flex: 1; min-width: 0; }
+.tpl-builder-name { font-size: 13px; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tpl-builder-meta { font-size: 11px; color: #9ca3af; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tpl-builder-empty { text-align: center; padding: 20px 0; color: #9ca3af; font-size: 12.5px; }
+
 /* ── Salt Bar ── */
 .salt-bar-wrap {
   margin: 0 12px 10px;
@@ -614,7 +632,15 @@ input { font-family: inherit; }
     <button class="add-btn-main" id="openFormBtn" onclick="openForm()">＋ 食事を追加する</button>
 
     <div class="form-card hidden" id="mealForm">
-      <div class="form-card-header"><h3 id="formTitle">食事を記録</h3></div>
+      <div class="form-card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <h3 id="formTitle">食事を記録</h3>
+        <button type="button" id="dataQuoteToggleBtn" onclick="toggleDataQuote()" style="display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #e5e7eb;border-radius:20px;padding:5px 10px 5px 8px;cursor:pointer;-webkit-tap-highlight-color:transparent">
+          <span id="dataQuoteToggleTrack" style="width:30px;height:17px;border-radius:9px;background:#e5e7eb;position:relative;transition:background 0.2s;flex-shrink:0">
+            <span id="dataQuoteToggleDot" style="position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.2);transition:transform 0.2s"></span>
+          </span>
+          <span style="font-size:10.5px;font-weight:700;color:#374151;white-space:nowrap">データ引用</span>
+        </button>
+      </div>
       <div class="form-body">
         <div style="position:relative">
           <input class="main-input" type="text" id="mealName" placeholder="料理名（例：鶏胸肉のサラダ）" autocomplete="off" oninput="onMealNameInput()" onfocus="onMealNameInput()">
@@ -686,12 +712,12 @@ input { font-family: inherit; }
         </div>
         <div id="templateCardCollapsible" style="display:none;background:#fff">
           <div style="padding:12px 18px" id="templateBody">
-            <div id="templateMealList" style="margin-bottom:10px"></div>
+            <div id="templateFoldersList" style="margin-bottom:10px"></div>
             <button onclick="saveCurrentDayAsTemplate()" style="width:100%;padding:11px;background:linear-gradient(135deg,#059669,#10b981);border:none;border-radius:12px;cursor:pointer;color:#fff;font-size:13px;font-weight:700">
               📋 今日の食事記録をテンプレートに保存
             </button>
-            <button onclick="clearTemplate()" style="width:100%;padding:9px;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;cursor:pointer;color:#9ca3af;font-size:12px;font-weight:600;margin-top:6px">
-              🗑️ テンプレートをクリア
+            <button onclick="openTemplateBuilder()" style="width:100%;padding:11px;background:#fff;border:1.5px solid #059669;border-radius:12px;cursor:pointer;color:#059669;font-size:13px;font-weight:700;margin-top:8px">
+              🧩 テンプレートを作成する
             </button>
           </div>
         </div>
@@ -809,6 +835,36 @@ input { font-family: inherit; }
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeMyListPreview()">キャンセル</button>
       <button class="modal-confirm" id="myListPreviewAddBtn" style="background:#059669" onclick="confirmMyListPreviewAdd()">＋ 追加する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template Name Modal (作成時の命名・リネーム兼用) -->
+<div class="modal-overlay" id="templateNameModal">
+  <div class="modal-box" style="max-width:320px">
+    <div class="gram-modal-body" style="padding:22px 22px 10px">
+      <div class="gram-modal-food" id="templateNameModalTitle">テンプレート名を入力</div>
+      <input type="text" id="templateNameInput" class="main-input" style="margin-top:14px" placeholder="例：平日の朝食セット" maxlength="30">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeTemplateNameModal()">キャンセル</button>
+      <button class="modal-confirm" style="background:#059669" onclick="confirmTemplateNameModal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template Builder Modal -->
+<div class="modal-overlay" id="templateBuilderModal">
+  <div class="modal-box" style="max-width:360px">
+    <div style="padding:20px 20px 4px">
+      <div style="font-size:15px;font-weight:800;color:#065f46;text-align:center;margin-bottom:2px">🧩 テンプレートを作成</div>
+      <div style="font-size:11.5px;color:#9ca3af;text-align:center;margin-bottom:10px">マイリストから食品を選んでください</div>
+      <input type="text" id="templateBuilderNameInput" class="main-input" style="margin-bottom:10px" placeholder="フォルダ名（例：平日の朝食セット）" maxlength="30">
+      <div id="templateBuilderList" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeTemplateBuilder()">キャンセル</button>
+      <button class="modal-confirm" id="templateBuilderConfirmBtn" style="background:#059669" onclick="confirmTemplateBuilder()">この内容で作成</button>
     </div>
   </div>
 </div>
@@ -1837,6 +1893,23 @@ function isBrandItem(name) {
   return BRAND_PREFIXES.some(p => name.startsWith(p));
 }
 
+// ── データ引用トグル(初期OFF。ONの時だけ食品候補を表示) ──
+let dataQuoteEnabled = localStorage.getItem('nr_dataQuoteEnabled') === 'true';
+function renderDataQuoteToggle() {
+  const track = document.getElementById('dataQuoteToggleTrack');
+  const dot = document.getElementById('dataQuoteToggleDot');
+  if (!track || !dot) return;
+  track.style.background = dataQuoteEnabled ? '#059669' : '#e5e7eb';
+  dot.style.transform = dataQuoteEnabled ? 'translateX(13px)' : 'translateX(0)';
+}
+function toggleDataQuote() {
+  dataQuoteEnabled = !dataQuoteEnabled;
+  localStorage.setItem('nr_dataQuoteEnabled', String(dataQuoteEnabled));
+  renderDataQuoteToggle();
+  if (!dataQuoteEnabled) hideFoodSuggestions();
+  showToast(dataQuoteEnabled ? '🔍 データ引用をONにしました' : '🔍 データ引用をOFFにしました');
+}
+
 // ── 実際のピクセル幅を測って「1行に収まるか」を正確に判定する ──
 const _measureCanvas = document.createElement('canvas');
 const _measureCtx = _measureCanvas.getContext('2d');
@@ -1862,6 +1935,7 @@ function nameFitsOneLine(name) {
 function onMealNameInput() {
   const box = document.getElementById('foodSuggestions');
   const q = document.getElementById('mealName').value.trim();
+  if (!dataQuoteEnabled) { box.classList.remove('show'); box.innerHTML = ''; return; }
   if (!q) { box.classList.remove('show'); box.innerHTML = ''; return; }
 
   // ① まず「厳選・定番データ(FOOD_DB)」から探す → シンプルで選びやすい
@@ -2686,8 +2760,21 @@ function deleteFromMyList(id) {
 
 let _dragSrcId = null;
 
-// ── Daily Template ──
-let dailyTemplate = JSON.parse(localStorage.getItem('nr_template') || 'null'); // array of meals or null
+// ── Templates(複数フォルダ対応) ──
+// 旧バージョン(単一テンプレート)からの移行も行う
+let templates = JSON.parse(localStorage.getItem('nr_templates') || 'null');
+if (!templates) {
+  const old = JSON.parse(localStorage.getItem('nr_template') || 'null');
+  templates = (old && old.length) ? [{ id: Date.now(), name: 'テンプレート1', items: old }] : [];
+  localStorage.setItem('nr_templates', JSON.stringify(templates));
+  localStorage.removeItem('nr_template');
+}
+function saveTemplates() {
+  localStorage.setItem('nr_templates', JSON.stringify(templates));
+}
+
+let _expandedTemplateIds = new Set();
+
 function toggleMyListDataMenu() {
   const menu = document.getElementById('myListDataMenu');
   const chevron = document.getElementById('myListDataChevron');
@@ -2704,42 +2791,186 @@ function toggleTemplateCard() {
   chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
+// ── 名前入力モーダル(作成時の命名・リネーム 共通) ──
+let _templateNameCallback = null;
+function openTemplateNameModal(title, defaultValue, callback) {
+  document.getElementById('templateNameModalTitle').textContent = title;
+  const input = document.getElementById('templateNameInput');
+  input.value = defaultValue || '';
+  _templateNameCallback = callback;
+  document.getElementById('templateNameModal').classList.add('show');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+function closeTemplateNameModal() {
+  document.getElementById('templateNameModal').classList.remove('show');
+  _templateNameCallback = null;
+}
+function confirmTemplateNameModal() {
+  const val = document.getElementById('templateNameInput').value.trim();
+  if (!val) { showToast('⚠️ 名前を入力してください'); return; }
+  const cb = _templateNameCallback;
+  closeTemplateNameModal();
+  if (cb) cb(val);
+}
+document.getElementById('templateNameModal').addEventListener('click', function (e) {
+  if (e.target === this) closeTemplateNameModal();
+});
+document.getElementById('templateNameInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') confirmTemplateNameModal();
+});
+
 function saveCurrentDayAsTemplate() {
   const meals = getMeals(selectedKey);
   if (meals.length === 0) {
     showToast('⚠️ この日の食事記録がありません');
     return;
   }
-  dailyTemplate = meals.map(m => ({...m}));
-  localStorage.setItem('nr_template', JSON.stringify(dailyTemplate));
-  renderTemplateList();
-  showToast(`📋 ${meals.length}件をテンプレートに保存しました`);
+  openTemplateNameModal('テンプレート名を入力', `テンプレート${templates.length + 1}`, (name) => {
+    templates.push({ id: Date.now(), name, items: meals.map(m => ({ ...m })) });
+    saveTemplates();
+    renderTemplateFolders();
+    showToast(`📋 「${name}」を作成しました（${meals.length}件）`);
+  });
 }
 
-function clearTemplate() {
-  dailyTemplate = null;
-  localStorage.removeItem('nr_template');
-  renderTemplateList();
-  showToast('🗑️ テンプレートをクリアしました');
+function renameTemplate(id) {
+  const tpl = templates.find(t => String(t.id) === String(id));
+  if (!tpl) return;
+  openTemplateNameModal('新しい名前を入力', tpl.name, (name) => {
+    tpl.name = name;
+    saveTemplates();
+    renderTemplateFolders();
+    showToast('✏️ 名前を変更しました');
+  });
 }
 
-function renderTemplateList() {
-  const el = document.getElementById('templateMealList');
+function deleteTemplateFolder(id) {
+  const tpl = templates.find(t => String(t.id) === String(id));
+  if (!tpl) return;
+  showModal({
+    icon: '🗑️', title: 'テンプレートを削除',
+    desc: `「${tpl.name}」を削除しますか？`,
+    confirmLabel: '削除する', confirmColor: '#f87171',
+    onConfirm: () => {
+      templates = templates.filter(t => String(t.id) !== String(id));
+      saveTemplates();
+      renderTemplateFolders();
+      showToast('🗑️ テンプレートを削除しました');
+    }
+  });
+}
+
+function toggleTemplateFolder(id) {
+  const key = String(id);
+  if (_expandedTemplateIds.has(key)) _expandedTemplateIds.delete(key);
+  else _expandedTemplateIds.add(key);
+  renderTemplateFolders();
+}
+
+function renderTemplateFolders() {
+  const el = document.getElementById('templateFoldersList');
   if (!el) return;
 
-  if (!dailyTemplate || dailyTemplate.length === 0) {
+  if (!templates || templates.length === 0) {
     el.innerHTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;padding:8px 0">テンプレート未設定</p>';
     return;
   }
-  el.innerHTML = dailyTemplate.map(m => {
-    const kcalText = m.kcal ? `${Math.round(m.kcal)} kcal` : '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
-      <span style="font-size:16px">🍽️</span>
-      <span style="font-size:13px;font-weight:700;color:#111827;flex:1">${m.name}</span>
-      ${kcalText ? `<span style="font-size:11px;background:#fef3c7;color:#92400e;border-radius:5px;padding:1px 6px;font-weight:700">${kcalText}</span>` : ''}
+
+  el.innerHTML = templates.map(tpl => {
+    const isOpen = _expandedTemplateIds.has(String(tpl.id));
+    const itemsHtml = (tpl.items || []).map(m => {
+      const kcalText = m.kcal ? `${Math.round(m.kcal)} kcal` : '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+        <span style="font-size:14px">🍽️</span>
+        <span style="font-size:12.5px;font-weight:600;color:#111827;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</span>
+        ${kcalText ? `<span style="font-size:10.5px;background:#fef3c7;color:#92400e;border-radius:5px;padding:1px 6px;font-weight:700;flex-shrink:0">${kcalText}</span>` : ''}
+      </div>`;
+    }).join('') || '<p style="font-size:11.5px;color:#9ca3af;padding:6px 0">空のテンプレートです</p>';
+
+    return `<div style="border:1px solid #e5e7eb;border-radius:14px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f9fafb;cursor:pointer" onclick="toggleTemplateFolder('${tpl.id}')">
+        <span style="font-size:16px;flex-shrink:0">📁</span>
+        <span style="font-size:13px;font-weight:700;color:#111827;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tpl.name}</span>
+        <span style="font-size:10.5px;color:#9ca3af;flex-shrink:0">${(tpl.items||[]).length}件</span>
+        <button onclick="event.stopPropagation();renameTemplate('${tpl.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0" title="名前を変更">✏️</button>
+        <button onclick="event.stopPropagation();deleteTemplateFolder('${tpl.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0" title="削除">🗑️</button>
+        <span style="font-size:10px;color:#9ca3af;transition:transform 0.2s;flex-shrink:0;transform:rotate(${isOpen?180:0}deg)">▾</span>
+      </div>
+      ${isOpen ? `<div style="padding:6px 14px 10px;background:#fff">${itemsHtml}</div>` : ''}
     </div>`;
   }).join('');
 }
+
+// ── Template Builder(マイリストから選んでテンプレート作成) ──
+let _tplBuilderSelected = new Set();
+
+function openTemplateBuilder() {
+  _tplBuilderSelected = new Set();
+  document.getElementById('templateBuilderNameInput').value = `テンプレート${templates.length + 1}`;
+  renderTemplateBuilderList();
+  document.getElementById('templateBuilderModal').classList.add('show');
+}
+
+function closeTemplateBuilder() {
+  document.getElementById('templateBuilderModal').classList.remove('show');
+}
+
+function toggleTemplateBuilderItem(id) {
+  const key = String(id);
+  if (_tplBuilderSelected.has(key)) _tplBuilderSelected.delete(key);
+  else _tplBuilderSelected.add(key);
+  renderTemplateBuilderList();
+}
+
+function renderTemplateBuilderList() {
+  const el = document.getElementById('templateBuilderList');
+  if (!el) return;
+  if (!myList || myList.length === 0) {
+    el.innerHTML = `<div class="tpl-builder-empty">⭐ マイリストが空です<br>先に食品をマイリストに保存してください</div>`;
+    return;
+  }
+  el.innerHTML = myList.map(item => {
+    const id = String(item.id);
+    const checked = _tplBuilderSelected.has(id);
+    const meta = [
+      item.kcal ? Math.round(item.kcal) + ' kcal' : null,
+      ...NUTRIENTS.map(k => item[k] ? k + ' ' + item[k] + UNITS[k] : null)
+    ].filter(Boolean).join('  ·  ');
+    return `<div class="tpl-builder-row${checked ? ' checked' : ''}" onclick="toggleTemplateBuilderItem('${id}')">
+      <div class="tpl-builder-checkbox">${checked ? '✓' : ''}</div>
+      <div class="tpl-builder-info">
+        <div class="tpl-builder-name">${item.name}</div>
+        <div class="tpl-builder-meta">${meta || '栄養素未登録'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function confirmTemplateBuilder() {
+  if (_tplBuilderSelected.size === 0) {
+    showToast('⚠️ 食品を1つ以上選んでください');
+    return;
+  }
+  const name = document.getElementById('templateBuilderNameInput').value.trim();
+  if (!name) {
+    showToast('⚠️ フォルダ名を入力してください');
+    return;
+  }
+  const selectedItems = myList.filter(item => _tplBuilderSelected.has(String(item.id)));
+  templates.push({
+    id: Date.now(),
+    name,
+    items: selectedItems.map(item => ({ ...item, id: Date.now() + Math.random() }))
+  });
+  saveTemplates();
+  renderTemplateFolders();
+  closeTemplateBuilder();
+  showToast(`🧩 「${name}」を作成しました（${selectedItems.length}件）`);
+}
+
+document.getElementById('templateBuilderModal').addEventListener('click', function (e) {
+  if (e.target === this) closeTemplateBuilder();
+});
 
 // 自動追加機能は廃止済み（テンプレートの保存/クリアのみ利用可能）
 function autoAddMeals(key) {
@@ -3144,7 +3375,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'mylist') { renderMyList(); renderTemplateList(); }
+  if (name === 'mylist') { renderMyList(); renderTemplateFolders(); }
 }
 
 // ── PWA ──
@@ -3189,7 +3420,8 @@ renderCalendar();
 updateAll();
 updateNetworkStatus();
 renderMyList();
-renderTemplateList();
+renderTemplateFolders();
+renderDataQuoteToggle();
 initMyListFontSizeBtns();
 renderWater();
 renderSalt();
